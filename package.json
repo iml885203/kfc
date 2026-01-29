@@ -1,5 +1,5 @@
 {
-  "name": "@iml88503/kfc",
+  "name": "kubefc",
   "version": "0.1.0",
   "description": "Kubernetes Follow Colorful - Follow Kubernetes deployment logs with style",
   "type": "module",
@@ -7,7 +7,7 @@
     "access": "public"
   },
   "bin": {
-    "kfc": "./dist/cli.js"
+    "kubefc": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

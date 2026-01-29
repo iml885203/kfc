@@ -27,6 +27,7 @@ export interface FilterOptions {
 
 /**
  * Check if a line should be shown based on filter criteria
+ * @note This creates a new RegExp every call. For bulk filtering, use filterLines.
  */
 export function shouldShowLine(
 	line: string,
@@ -36,10 +37,14 @@ export function shouldShowLine(
 ): boolean {
 	if (!pattern) return true;
 
-	const regex = new RegExp(pattern, ignoreCase ? 'i' : '');
-	const matches = regex.test(line);
-
-	return invert ? !matches : matches;
+	try {
+		const regex = new RegExp(pattern, ignoreCase ? 'i' : '');
+		const matches = regex.test(line);
+		return invert ? !matches : matches;
+	} catch (e) {
+		// Fallback for invalid regex: show line (safer than hiding)
+		return true;
+	}
 }
 
 /**
@@ -62,10 +67,24 @@ export function filterLines(
 		}));
 	}
 
+	let regex: RegExp;
+	try {
+		regex = new RegExp(pattern, ignoreCase ? 'i' : '');
+	} catch (e) {
+		// Invalid regex: return all lines as non-matches (same as no filter)
+		return lines.map((line, index) => ({
+			bufferedLine: line,
+			isMatch: false,
+			index,
+		}));
+	}
+
 	// Find matching lines
 	const matchIndices = new Set<number>();
 	lines.forEach((line, index) => {
-		if (shouldShowLine(line.line, pattern, ignoreCase, invert)) {
+		const matches = regex.test(line.line);
+		const isMatch = invert ? !matches : matches;
+		if (isMatch) {
 			matchIndices.add(index);
 		}
 	});

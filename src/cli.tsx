@@ -14,6 +14,7 @@ const cli = meow(
 	  --context, -c    Kubernetes context
 	  --tail           Number of lines to show from the end (default: 100)
 	  --max-retry      Maximum retry attempts (default: 10)
+	  --timeout        Connection timeout in seconds (default: 10)
 	  --grep, -g       Filter logs by pattern (regex supported)
 	  --after, -A      Show N lines after match (default: 0)
 	  --before, -B     Show N lines before match (default: 0)
@@ -53,6 +54,10 @@ const cli = meow(
 				type: 'number',
 				default: parseInt(process.env.KFC_MAX_RETRY || '10'),
 			},
+			timeout: {
+				type: 'number',
+				default: parseInt(process.env.KFC_TIMEOUT || '10'),
+			},
 			grep: {
 				type: 'string',
 				shortFlag: 'g',
@@ -89,13 +94,14 @@ const cli = meow(
 	}
 );
 
-render(
+const app = render(
 	<App
 		deploymentName={cli.input[0]}
 		namespace={cli.flags.namespace}
 		context={cli.flags.context}
 		tail={cli.flags.tail}
 		maxRetry={cli.flags.maxRetry}
+		timeout={cli.flags.timeout}
 		grepPattern={cli.flags.grep}
 		grepAfter={cli.flags.after}
 		grepBefore={cli.flags.before}
@@ -104,3 +110,6 @@ render(
 		grepInvert={cli.flags.invert}
 	/>
 );
+
+await app.waitUntilExit();
+process.exit(0);

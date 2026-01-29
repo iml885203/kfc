@@ -2,8 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, useApp, useStdout, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import chalk from 'chalk';
-import { followLogs, LogLine } from '../k8s/client.js';
+import { followLogs } from '../k8s/client.js';
 import { colorizeLogLine } from '../utils/colorize.js';
+import { useLogBuffer } from '../hooks/useLogBuffer.js';
+import { useLogFilter } from '../hooks/useLogFilter.js';
+import { filterLines, shouldShowLine } from '../utils/logFilter.js';
+import { highlightMatches } from '../utils/logHighlight.js';
+
+
 
 interface LogViewerProps {
 	deployment: string;
@@ -11,19 +17,14 @@ interface LogViewerProps {
 	context?: string;
 	tail: number;
 	maxRetry: number;
+	timeout: number;
 	grepPattern?: string;
 	grepAfter?: number;
 	grepBefore?: number;
 	grepContext?: number;
 	grepIgnoreCase?: boolean;
 	grepInvert?: boolean;
-}
-
-interface BufferedLine {
-	podPrefix: string;
-	line: string;
-	coloredLine: string;
-	timestamp: number;
+	onBack?: () => void;
 }
 
 export default function LogViewer({
@@ -32,140 +33,75 @@ export default function LogViewer({
 	context,
 	tail,
 	maxRetry,
+	timeout,
 	grepPattern: initialPattern,
 	grepAfter: initialAfter = 0,
 	grepBefore: initialBefore = 0,
 	grepContext: initialContext = 0,
 	grepIgnoreCase: initialIgnoreCase = false,
 	grepInvert: initialInvert = false,
+	onBack,
 }: LogViewerProps) {
 	const { exit } = useApp();
 	const { write } = useStdout();
+
+
+	
+	// Connection state
 	const [status, setStatus] = useState<string>('Connecting...');
+	const [connectionProgress, setConnectionProgress] = useState<string>('');
 	const [retryCount, setRetryCount] = useState(0);
 	const [isConnected, setIsConnected] = useState(false);
 	
-	// Interactive filter state
+	// Use custom hooks for buffer and filter management
+	const { buffer, addLine } = useLogBuffer(10000);
+	const filter = useLogFilter(
+		initialPattern,
+		initialAfter,
+		initialBefore,
+		initialContext,
+		initialIgnoreCase,
+		initialInvert
+	);
+	
+	// Interactive state
 	const [filterMode, setFilterMode] = useState(false);
 	const [filterInput, setFilterInput] = useState('');
-	const [grepPattern, setGrepPattern] = useState(initialPattern || '');
-	const [grepIgnoreCase, setGrepIgnoreCase] = useState(initialIgnoreCase);
-	const [grepInvert, setGrepInvert] = useState(initialInvert);
-	const [grepContext, setGrepContext] = useState(initialContext);
-	const [grepAfter, setGrepAfter] = useState(initialAfter);
-	const [grepBefore, setGrepBefore] = useState(initialBefore);
 	const [paused, setPaused] = useState(false);
 	
-	// Buffer for all lines (for re-filtering)
-	const allLines = useRef<BufferedLine[]>([]);
-	const maxBufferSize = 10000; // Keep last 10k lines
-	const lastFilterState = useRef({ pattern: grepPattern, ignoreCase: grepIgnoreCase, invert: grepInvert, context: grepContext });
+	// Track current filter state for the log callback (to avoid closure staleness)
+	const currentFilter = useRef(filter);
+	useEffect(() => {
+		currentFilter.current = filter;
+		// Re-filter when filter settings change
+		refilterAndDisplay();
+	}, [filter]);
 
-	// Highlight matching text in a line
-	function highlightMatches(text: string, pattern: string, ignoreCase: boolean): string {
-		if (!pattern) return text;
-		
-		try {
-			const flags = ignoreCase ? 'gi' : 'g';
-			const regex = new RegExp(pattern, flags);
-			return text.replace(regex, (match) => chalk.black.bgYellow(match));
-		} catch {
-			return text;
+	// Initialize screen with space for status bar
+	const hasInitialized = useRef(false);
+	useEffect(() => {
+		if (!hasInitialized.current) {
+			write('\n\n\n');
+			hasInitialized.current = true;
 		}
-	}
+	}, []);
 
-	// Handle keyboard input
-	useInput((input, key) => {
-		if (filterMode) {
-			// In filter mode, handle text input
-			if (key.return) {
-				// Apply filter
-				setGrepPattern(filterInput);
-				setFilterMode(false);
-				// Trigger refilter
-				refilterAndDisplay(filterInput, grepIgnoreCase, grepInvert, grepContext, grepBefore, grepAfter);
-			} else if (key.escape) {
-				// Cancel filter
-				setFilterMode(false);
-				setFilterInput('');
-			} else if (key.backspace || key.delete) {
-				setFilterInput(prev => prev.slice(0, -1));
-			} else if (!key.ctrl && !key.meta && input) {
-				setFilterInput(prev => prev + input);
-			}
-		} else {
-			// Normal mode - keyboard shortcuts
-			if (input === '/') {
-				// Enter filter mode
-				setFilterMode(true);
-				setFilterInput(grepPattern);
-			} else if (input === 'c') {
-				// Clear filter
-				const newPattern = '';
-				setGrepPattern(newPattern);
-				setGrepInvert(false);
-				refilterAndDisplay(newPattern, grepIgnoreCase, false, grepContext, grepBefore, grepAfter);
-			} else if (input === 'i') {
-				// Toggle ignore case
-				const newIgnoreCase = !grepIgnoreCase;
-				setGrepIgnoreCase(newIgnoreCase);
-				refilterAndDisplay(grepPattern, newIgnoreCase, grepInvert, grepContext, grepBefore, grepAfter);
-			} else if (input === 'v') {
-				// Toggle invert
-				const newInvert = !grepInvert;
-				setGrepInvert(newInvert);
-				refilterAndDisplay(grepPattern, grepIgnoreCase, newInvert, grepContext, grepBefore, grepAfter);
-			} else if (input === 'p') {
-				// Toggle pause
-				setPaused(prev => !prev);
-			} else if (input === '+') {
-				// Increase context
-				const newContext = Math.min(grepContext + 1, 20);
-				setGrepContext(newContext);
-				refilterAndDisplay(grepPattern, grepIgnoreCase, grepInvert, newContext, grepBefore, grepAfter);
-			} else if (input === '-') {
-				// Decrease context
-				const newContext = Math.max(grepContext - 1, 0);
-				setGrepContext(newContext);
-				refilterAndDisplay(grepPattern, grepIgnoreCase, grepInvert, newContext, grepBefore, grepAfter);
-			} else if (input === 'q') {
-				// Quit
-				exit();
-			} else if (input === '?') {
-				// Show help
-				showHelp();
-			}
-		}
-	});
-
-	function showHelp() {
-		write(chalk.cyan('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
-		write(chalk.cyan.bold('  KFC Interactive Mode - Keyboard Shortcuts\n'));
-		write(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
-		write(chalk.yellow('  /') + '  - Enter filter mode (type pattern, press Enter)\n');
-		write(chalk.yellow('  c') + '  - Clear filter\n');
-		write(chalk.yellow('  i') + '  - Toggle case-insensitive matching\n');
-		write(chalk.yellow('  v') + '  - Toggle invert match\n');
-		write(chalk.yellow('  p') + '  - Toggle pause/resume log streaming\n');
-		write(chalk.yellow('  +') + '  - Increase context lines\n');
-		write(chalk.yellow('  -') + '  - Decrease context lines\n');
-		write(chalk.yellow('  ?') + '  - Show this help\n');
-		write(chalk.yellow('  q') + '  - Quit\n');
-		write(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'));
-	}
-
-	function refilterAndDisplay(
-		pattern: string,
-		ignoreCase: boolean,
-		invert: boolean,
-		contextLines: number,
-		beforeLines: number,
-		afterLines: number
-	) {
+	// Function to clear screen and display filtered logs
+	function refilterAndDisplay() {
 		// Clear screen
 		write('\x1Bc');
 		
-		const filtered = filterLines(allLines.current, pattern, ignoreCase, invert, contextLines, beforeLines, afterLines);
+		const { pattern, ignoreCase, invert, context, before, after } = currentFilter.current;
+		
+		const filtered = filterLines(
+			buffer.current,
+			pattern,
+			ignoreCase,
+			invert,
+			context,
+			before,
+			after
+		);
 		
 		if (filtered.length === 0 && pattern) {
 			write(chalk.yellow(`No matches found for pattern: ${pattern}\n\n`));
@@ -192,100 +128,117 @@ export default function LogViewer({
 		}
 	}
 
-	function filterLines(
-		lines: BufferedLine[],
-		pattern: string,
-		ignoreCase: boolean,
-		invert: boolean,
-		contextLines: number,
-		beforeLines: number,
-		afterLines: number
-	): Array<{ bufferedLine: BufferedLine; isMatch: boolean; index: number }> {
-		if (!pattern) {
-			return lines.map((line, idx) => ({ bufferedLine: line, isMatch: false, index: idx }));
-		}
+	// Track if help is showing
+	const [isShowingHelp, setIsShowingHelp] = useState(false);
+	const isShowingHelpRef = useRef(false);
 
-		try {
-			const flags = ignoreCase ? 'i' : '';
-			const regex = new RegExp(pattern, flags);
-			const matchedIndices = new Set<number>();
-			
-			// Find matches
-			lines.forEach((line, idx) => {
-				const matches = regex.test(line.line);
-				const isMatch = invert ? !matches : matches;
-				if (isMatch) {
-					matchedIndices.add(idx);
-				}
-			});
-
-			// Calculate context (contextLines overrides beforeLines/afterLines)
-			const before = contextLines > 0 ? contextLines : beforeLines;
-			const after = contextLines > 0 ? contextLines : afterLines;
-
-			// Add context
-			const toShow = new Set<number>();
-			matchedIndices.forEach(idx => {
-				toShow.add(idx);
-				// Add before context
-				for (let i = Math.max(0, idx - before); i < idx; i++) {
-					toShow.add(i);
-				}
-				// Add after context
-				for (let i = idx + 1; i <= Math.min(lines.length - 1, idx + after); i++) {
-					toShow.add(i);
-				}
-			});
-
-			// Return filtered lines with match flag
-			return Array.from(toShow)
-				.sort((a, b) => a - b)
-				.map(idx => ({
-					bufferedLine: lines[idx],
-					isMatch: matchedIndices.has(idx),
-					index: idx,
-				}));
-		} catch {
-			return lines.map((line, idx) => ({ bufferedLine: line, isMatch: false, index: idx }));
-		}
-	}
-
-	function shouldShowLine(line: string, pattern: string, ignoreCase: boolean, invert: boolean): boolean {
-		if (!pattern) return true;
-		
-		try {
-			const flags = ignoreCase ? 'i' : '';
-			const regex = new RegExp(pattern, flags);
-			const matches = regex.test(line);
-			return invert ? !matches : matches;
-		} catch {
-			return true;
-		}
-	}
-
-	// Use refs to track current filter state for the log callback
-	const currentFilter = useRef({
-		pattern: grepPattern,
-		ignoreCase: grepIgnoreCase,
-		invert: grepInvert,
-	});
-
-	// Update refs when filter state changes
+	// Sync state to ref for callback access
 	useEffect(() => {
-		currentFilter.current = {
-			pattern: grepPattern,
-			ignoreCase: grepIgnoreCase,
-			invert: grepInvert,
-		};
-	}, [grepPattern, grepIgnoreCase, grepInvert]);
+		isShowingHelpRef.current = isShowingHelp;
+		if (isShowingHelp) {
+			write('\x1Bc');
+		} else {
+			// Restore logs when closing help
+			if (isConnected) {
+				refilterAndDisplay();
+			}
+		}
+	}, [isShowingHelp, isConnected]);
 
+	// Handle keyboard input
+	useInput((input, key) => {
+		if (isShowingHelp) {
+			// Any key exits help
+			setIsShowingHelp(false);
+			return;
+		}
+
+		if (!isConnected) {
+			return;
+		}
+		
+		if (filterMode) {
+			// In filter mode, handle text input
+			if (key.return) {
+				// Apply filter
+				filter.setPattern(filterInput);
+				setFilterMode(false);
+			} else if (key.escape) {
+				// Cancel filter
+				setFilterMode(false);
+				setFilterInput('');
+			} else if (key.backspace || key.delete) {
+				if (key.meta) {
+					// Option+Delete: Remove last word
+					setFilterInput(prev => {
+						const words = prev.trimEnd().split(' ');
+						words.pop();
+						return words.join(' ') + (words.length > 0 ? ' ' : '');
+					});
+					return;
+				}
+				
+				if (key.ctrl) {
+					// Ctrl+Backspace
+					setFilterInput('');
+					return;
+				}
+
+				setFilterInput(prev => prev.slice(0, -1));
+			} else if (key.ctrl && input === 'u') {
+				// Ctrl+U (Cmd+Delete often sends this)
+				setFilterInput('');
+			} else if (!key.ctrl && !key.meta && input) {
+				setFilterInput(prev => prev + input);
+			}
+		} else {
+			// Normal mode - keyboard shortcuts
+			if (input === '/') {
+				// Enter filter mode
+				setFilterMode(true);
+				setFilterInput(filter.pattern);
+			} else if (input === 'c') {
+				// Clear filter
+				filter.clearFilter();
+			} else if (input === 'i') {
+				// Toggle ignore case
+				filter.toggleIgnoreCase();
+			} else if (input === 'v') {
+				// Toggle invert
+				filter.toggleInvert();
+			} else if (input === 'p') {
+				// Toggle pause
+				setPaused(prev => !prev);
+			} else if (input === '+') {
+				// Increase context
+				filter.increaseContext();
+			} else if (input === '-') {
+				// Decrease context
+				filter.decreaseContext();
+			} else if (input === '?') {
+				setIsShowingHelp(true);
+			} else if (key.escape && onBack) {
+				onBack();
+			}
+		}
+	}, { isActive: true });
+
+	// Connection state check for non-exit keys
+	useEffect(() => {
+		if (!isConnected && filterMode) {
+			setFilterMode(false);
+		}
+	}, [isConnected]);
+
+	// Main log streaming effect
 	useEffect(() => {
 		let cancelled = false;
 
 		async function startFollowing() {
 			try {
-				setStatus(`Following logs for ${deployment}...`);
-				setIsConnected(true);
+				setStatus(`Connecting to ${deployment}...`);
+				setConnectionProgress('Initializing...');
+				setIsConnected(false);
 
 				await followLogs(
 					deployment,
@@ -294,29 +247,35 @@ export default function LogViewer({
 					tail,
 					(logLine) => {
 						if (!cancelled && !paused) {
+							// Mark as connected on first log
+							if (!isConnected) {
+								setIsConnected(true);
+								setStatus(`Following logs for ${deployment}`);
+								setConnectionProgress('');
+							}
+							
 							const podPrefix = `[${logLine.pod}/${logLine.container}]`;
 							const coloredLine = colorizeLogLine(logLine.line);
 							
-							// Add to buffer
-							allLines.current.push({
+							const bufferedLine = {
 								podPrefix,
 								line: logLine.line,
 								coloredLine,
 								timestamp: Date.now(),
-							});
+							};
 
-							// Trim buffer if too large
-							if (allLines.current.length > maxBufferSize) {
-								allLines.current = allLines.current.slice(-maxBufferSize);
-							}
+							// Add to buffer
+							addLine(bufferedLine);
+
 
 							// Use current filter state from ref
 							const { pattern, ignoreCase, invert } = currentFilter.current;
 							
-							// Check if should display
+							// Check if should display using utils
+							// shouldShowLine is now safe against invalid regex (returns true)
 							const isMatch = shouldShowLine(logLine.line, pattern, ignoreCase, invert);
 							
-							if (!pattern || isMatch) {
+							if ((!pattern || isMatch) && !isShowingHelpRef.current) {
 								// Highlight matches in real-time
 								const highlightedLine = pattern && isMatch
 									? highlightMatches(logLine.line, pattern, ignoreCase)
@@ -331,20 +290,30 @@ export default function LogViewer({
 					(error) => {
 						if (!cancelled) {
 							setIsConnected(false);
+							setConnectionProgress('');
 							if (retryCount < maxRetry) {
 								setRetryCount(prev => prev + 1);
-								setStatus(`Connection lost. Retrying (${retryCount + 1}/${maxRetry})...`);
+								const nextRetry = retryCount + 1;
+								setStatus(`Connection lost. Retrying (${nextRetry}/${maxRetry})...`);
 								setTimeout(() => startFollowing(), 2000);
 							} else {
 								setStatus(`Failed after ${maxRetry} attempts: ${error.message}`);
+								write(chalk.red(`\n✗ Error: ${error.message}\n`));
 								setTimeout(() => exit(), 3000);
 							}
 						}
-					}
+					},
+					(progressMsg) => {
+						setConnectionProgress(progressMsg);
+					},
+					timeout * 1000
 				);
 			} catch (error) {
 				if (!cancelled) {
-					setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`);
+					const errorMsg = error instanceof Error ? error.message : String(error);
+					setStatus(`Error: ${errorMsg}`);
+					setConnectionProgress('');
+					write(chalk.red(`\n✗ ${errorMsg}\n`));
 					setTimeout(() => exit(new Error(String(error))), 3000);
 				}
 			}
@@ -357,30 +326,42 @@ export default function LogViewer({
 		};
 	}, [deployment, namespace, context, tail, retryCount, paused]);
 
-	// Initialize screen with space for status bar
-	const hasInitialized = useRef(false);
-	useEffect(() => {
-		if (!hasInitialized.current) {
-			// Add some initial newlines to push logs down
-			write('\n\n\n');
-			hasInitialized.current = true;
-		}
-	}, []);
-
 	// Build status info
 	const contextInfo = context ? chalk.blue(`[${context}]`) : '';
 	const namespaceInfo = chalk.yellow(`[${namespace}]`);
 	const deploymentInfo = chalk.cyan(deployment);
 	
-	const filterInfo = grepPattern
-		? ` | ${grepInvert ? 'NOT ' : ''}/${grepPattern}/${grepIgnoreCase ? 'i' : ''}${
-				grepContext > 0 ? ` ±${grepContext}` : ''
+	const filterInfo = filter.pattern
+		? ` | ${filter.invert ? 'NOT ' : ''}/${filter.pattern}/${filter.ignoreCase ? 'i' : ''}${
+				filter.context > 0 ? ` ±${filter.context}` : ''
 		  }`
 		: '';
 	
 	const pauseInfo = paused ? ' [PAUSED]' : '';
 	const modeInfo = filterMode ? ' [FILTER MODE]' : '';
-	const bufferInfo = ` (${allLines.current.length})`;
+	const bufferInfo = ` (${buffer.current.length})`;
+
+	if (isShowingHelp) {
+		return (
+			<Box flexDirection="column" padding={1} borderStyle="double" borderColor="cyan">
+				<Text bold color="cyan" underline>KFC Interactive Mode - Keyboard Shortcuts</Text>
+				<Box marginTop={1} flexDirection="column">
+					<Text><Text color="yellow" bold>/</Text>   Filter logs (type pattern, press Enter)</Text>
+					<Text><Text color="yellow" bold>c</Text>   Clear filter</Text>
+					<Text><Text color="yellow" bold>i</Text>   Toggle case-insensitive matching</Text>
+					<Text><Text color="yellow" bold>v</Text>   Toggle invert match</Text>
+					<Text><Text color="yellow" bold>p</Text>   Toggle pause/resume log streaming</Text>
+					<Text><Text color="yellow" bold>+</Text>   Increase context lines</Text>
+					<Text><Text color="yellow" bold>-</Text>   Decrease context lines</Text>
+					<Text><Text color="yellow" bold>?</Text>   Show this help</Text>
+					<Text><Text color="yellow" bold>Esc</Text> Go back</Text>
+				</Box>
+				<Box marginTop={1}>
+					<Text dimColor>Press any key to return...</Text>
+				</Box>
+			</Box>
+		);
+	}
 
 	return (
 		<Box flexDirection="column">
@@ -412,7 +393,7 @@ export default function LogViewer({
 			{!filterMode && isConnected && (
 				<Box marginTop={1}>
 					<Text dimColor>
-						Press <Text color="yellow">?</Text> for help, <Text color="yellow">/</Text> to filter, <Text color="yellow">q</Text> to quit
+						Press <Text color="yellow">?</Text> for help, <Text color="yellow">/</Text> to filter
 					</Text>
 				</Box>
 			)}
@@ -421,7 +402,8 @@ export default function LogViewer({
 			{!isConnected && (
 				<Box marginTop={1}>
 					<Text color="yellow">
-						<Spinner type="dots" /> Reconnecting...
+						<Spinner type="dots" /> {connectionProgress || 'Connecting...'}
+						{retryCount > 0 && ` (Retry ${retryCount}/${maxRetry})`}
 					</Text>
 				</Box>
 			)}

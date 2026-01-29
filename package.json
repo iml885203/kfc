@@ -1,5 +1,5 @@
 {
-  "name": "@logan/kfc",
+  "name": "@iml88503/kfc",
   "version": "0.1.0",
   "description": "Kubernetes Follow Colorful - Follow Kubernetes deployment logs with style",
   "type": "module",
@@ -25,7 +25,7 @@
     "ink",
     "typescript"
   ],
-  "author": "logan",
+  "author": "iml88503",
   "license": "MIT",
   "files": [
     "dist/",

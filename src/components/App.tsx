@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import Spinner from 'ink-spinner';
 import SelectInput from 'ink-select-input';
 import { getDeployments, getContexts, getNamespaces, getCurrentContext } from '../k8s/client.js';
 import LogViewer from './LogViewer.js';
 import { getCachedDeployments, setCachedDeployments } from '../utils/cache.js';
+import { getDefaultNamespace, setDefaultNamespace } from '../utils/config.js';
 
 interface AppProps {
 	deploymentName?: string;
@@ -52,6 +53,8 @@ export default function App({
 	// Data selection state
 	const [isSelectingNamespace, setIsSelectingNamespace] = useState(false);
 	const [searchText, setSearchText] = useState('');
+	const [highlightedNamespace, setHighlightedNamespace] = useState<string>('');
+	const [message, setMessage] = useState<string | null>(null);
 
 	// Data Cache / State
 	const [contexts, setContexts] = useState<string[]>([]);
@@ -66,22 +69,32 @@ export default function App({
 	useEffect(() => {
 		async function init() {
 			if (initialDeployment) {
-				// If deployment is specified, jump straight to logs
-				// We assume context and namespace are provided or defaults are fine
-				// But we might need to resolve context if not provided? 
-				// The CLI args provide context/namespace directly.
 				if (initialContext) setSelectedContext(initialContext);
-				// namespace is 'default' by default prop if not set, so it's fine.
-				
 				setLayer('logs');
 			} else if (initialContext) {
-				// If only context is provided, jump to deployment selection
 				setSelectedContext(initialContext);
 				setLayer('deployment');
 			} else {
-				// Otherwise start at context selection
-				// But we need to load contexts first
 				loadContexts();
+			}
+
+			// Check for default namespace preference
+			if (!initialDeployment && initialNamespace === 'default') {
+				const pref = getDefaultNamespace();
+				if (pref && pref !== 'default') {
+					try {
+						const ctx = initialContext || getCurrentContext();
+						// Fetch namespaces to verify existence
+						// Note: This might delay startup slightly or run in parallel?
+						// We run it optimistically.
+						const nss = await getNamespaces(ctx);
+						if (nss.includes(pref)) {
+							setSelectedNamespace(pref);
+						}
+					} catch (e) {
+						// Ignore error, fallback to default
+					}
+				}
 			}
 		}
 		init();
@@ -90,6 +103,7 @@ export default function App({
 	// Clear search text when changing layers or mode
 	useEffect(() => {
 		setSearchText('');
+		setMessage(null);
 	}, [layer, isSelectingNamespace]);
 
 	// Loaders
@@ -234,9 +248,21 @@ export default function App({
 			return;
 		}
 
+		// Ensure we always have a valid highlighted namespace for Ctrl+S
+		// This handles the case where searching update the list but 'onHighlight' hasn't fired yet
+		if (key.ctrl && input === 's' && isSelectingNamespace) {
+			const target = highlightedNamespace || (filteredNamespaces.length > 0 ? filteredNamespaces[0] : '');
+			if (target) {
+				setDefaultNamespace(target);
+				setMessage(`Default namespace set to '${target}'`);
+				setTimeout(() => setMessage(null), 3000);
+			}
+			return;
+		}
+
 		// Search Input Handling
 		// Only capture if not navigating (arrow keys, enter, esc, tab) and not control keys
-		if ((layer === 'context' || layer === 'deployment') && !isSelectingNamespace) {
+		if ((layer === 'context' || layer === 'deployment')) {
 			// Handle Deletion
 			if (key.delete || key.backspace) {
 				if (key.meta) {
@@ -279,6 +305,7 @@ export default function App({
 		setLayer('deployment');
 	};
 
+
 	const handleDeploymentSelect = (item: { value: string }) => {
 		setSelectedDeployment(item.value);
 		setLayer('logs');
@@ -289,6 +316,20 @@ export default function App({
 		setIsSelectingNamespace(false);
 		// Effect will trigger reload of deployments
 	};
+
+	// --- Helpers ---
+	const filteredNamespaces = useMemo(() => {
+		if (!isSelectingNamespace) return [];
+		return namespaces.filter(ns => ns.toLowerCase().includes(searchText.toLowerCase()));
+	}, [namespaces, searchText, isSelectingNamespace]);
+
+	// Sync highlighted namespace when filtered list changes (e.g. searching)
+	useEffect(() => {
+		if (isSelectingNamespace && filteredNamespaces.length > 0) {
+			// SelectInput resets to index 0 on items change, so we should track that
+			setHighlightedNamespace(filteredNamespaces[0]);
+		}
+	}, [filteredNamespaces, isSelectingNamespace]);
 
 	// --- Render Helpers ---
 
@@ -328,17 +369,29 @@ export default function App({
 			if (isLoading) return <Text color="green"><Spinner type="dots"/> Loading namespaces...</Text>;
 			if (error) return <Box flexDirection="column"><Text color="red">Error: {error}</Text><Text dimColor>Press Esc to cancel</Text></Box>;
 
-			const items = namespaces.map(ns => ({ label: ns, value: ns }));
-			// Try to find default index? Ink SelectInput doesn't support initialIndex easily by value.
-			// Users just have to scroll.
+			const items = filteredNamespaces.map(ns => ({ label: ns, value: ns }));
+
 			return (
 				<Box flexDirection="column">
 					<Box borderStyle="double" borderColor="yellow" paddingX={1}>
 						<Text>Select Namespace</Text>
 					</Box>
-					<SelectInput items={items} onSelect={handleNamespaceSelect} limit={listLimit} />
+					<Box marginBottom={1}>
+						<Text>Search: <Text color="yellow">{searchText}</Text>{searchText ? '_' : ''}</Text>
+					</Box>
+					{message && <Text color="green" bold>{message}</Text>}
+					<SelectInput 
+						items={items} 
+						onSelect={handleNamespaceSelect} 
+						onHighlight={(item) => setHighlightedNamespace(item.value)}
+						limit={listLimit} 
+					/>
 					<Box marginTop={1}>
-						<Text dimColor>Press <Text color="yellow">Esc</Text> to cancel</Text>
+						<Text dimColor>
+							<Text color="yellow">Enter</Text> select  |  
+							<Text color="yellow"> Ctrl+S</Text> set default  |  
+							<Text color="yellow"> Esc</Text> cancel
+						</Text>
 					</Box>
 				</Box>
 			);

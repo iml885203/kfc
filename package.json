@@ -1,6 +1,6 @@
 {
   "name": "kubefc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Kubernetes Follow Colorful - Follow Kubernetes deployment logs with style",
   "type": "module",
   "publishConfig": {
@@ -13,8 +13,8 @@
     "build": "tsc",
     "dev": "tsx src/cli.tsx",
     "start": "node dist/cli.js",
-    "prepublishOnly": "npm run build",
-    "test": "npm run build && node dist/cli.js --version"
+    "prepublishOnly": "pnpm run build",
+    "test": "pnpm run build && node dist/cli.js --version"
   },
   "keywords": [
     "kubernetes",

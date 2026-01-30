@@ -4,7 +4,7 @@
 
 A beautiful CLI tool for following Kubernetes deployment logs with rich syntax highlighting and interactive UI, built with **TypeScript + Ink**.
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Node](https://img.shields.io/badge/node-%3E%3D14-brightgreen)
 
@@ -28,13 +28,15 @@ A beautiful CLI tool for following Kubernetes deployment logs with rich syntax h
 ### Using npx (Recommended)
 
 ```bash
-npx @logan/kfc -n production my-deployment
+npx kubefc -n production my-deployment
+# or
+pnpx kubefc -n production my-deployment
 ```
 
 ### Global Installation
 
 ```bash
-npm install -g @logan/kfc
+pnpm install -g @logan/kfc
 kfc --help
 ```
 
@@ -43,9 +45,9 @@ kfc --help
 ```bash
 git clone <repository_url>
 cd kfc
-npm install
-npm run build
-npm link
+pnpm install
+pnpm run build
+pnpm link --global
 kfc --help
 ```
 
@@ -181,19 +183,19 @@ kfc/
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Development mode (with tsx)
-npm run dev -- -n production my-deployment
+pnpm run dev -- -n production my-deployment
 
 # Build
-npm run build
+pnpm run build
 
 # Run built version
-npm start -- --help
+pnpm start -- --help
 
 # Test
-npm test
+pnpm test
 ```
 
 ### Tech Stack
@@ -229,7 +231,7 @@ npm test
 - ✅ **React for CLI** - Build CLI with React components
 - ✅ **Rich UI** - Built-in Spinner, SelectInput, and more
 - ✅ **Easy Maintenance** - Familiar React development patterns
-- ✅ **npx Friendly** - Run directly with `npx @logan/kfc`
+- ✅ **npx Friendly** - Run directly with `npx kubefc`
 - ✅ **No Compilation Dependencies** - No need for Go toolchain
 
 ### Comparison with Other Approaches
@@ -310,10 +312,10 @@ MIT
 
 ```bash
 # Try it now!
-npx @logan/kfc -n kube-system coredns
+npx kubefc -n kube-system coredns
 
 # Or install globally
-npm install -g @logan/kfc
+pnpm install -g @logan/kfc
 kfc --help
 ```
 

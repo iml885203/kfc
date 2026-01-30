@@ -7,7 +7,7 @@ import App from './components/App.js';
 const cli = meow(
 	`
 	Usage
-	  $ kfc [deployment-name]
+	  $ kubefc [deployment-name]
 
 	Options
 	  --namespace, -n  Kubernetes namespace (default: default)
@@ -25,14 +25,14 @@ const cli = meow(
 	  --help, -h       Show help
 
 	Examples
-	  $ kfc my-deployment
-	  $ kfc -n production my-deployment
-	  $ kfc -c staging-cluster -n production my-deployment
-	  $ kfc --tail 200 my-deployment
-	  $ kfc --grep "ERROR" my-deployment
-	  $ kfc -g "user.*login" -A 3 -B 2 my-deployment
-	  $ kfc -g "payment" -C 5 my-deployment
-	  $ kfc -g "success" -i my-deployment
+	  $ kubefc my-deployment
+	  $ kubefc -n production my-deployment
+	  $ kubefc -c staging-cluster -n production my-deployment
+	  $ kubefc --tail 200 my-deployment
+	  $ kubefc --grep "ERROR" my-deployment
+	  $ kubefc -g "user.*login" -A 3 -B 2 my-deployment
+	  $ kubefc -g "payment" -C 5 my-deployment
+	  $ kubefc -g "success" -i my-deployment
 `,
 	{
 		importMeta: import.meta,
@@ -40,7 +40,7 @@ const cli = meow(
 			namespace: {
 				type: 'string',
 				shortFlag: 'n',
-				default: process.env.KFC_NAMESPACE || 'default',
+				default: process.env.KUBEFC_NAMESPACE || 'default',
 			},
 			context: {
 				type: 'string',
@@ -48,15 +48,15 @@ const cli = meow(
 			},
 			tail: {
 				type: 'number',
-				default: parseInt(process.env.KFC_TAIL_LINES || '100'),
+				default: parseInt(process.env.KUBEFC_TAIL_LINES || '100'),
 			},
 			maxRetry: {
 				type: 'number',
-				default: parseInt(process.env.KFC_MAX_RETRY || '10'),
+				default: parseInt(process.env.KUBEFC_MAX_RETRY || '10'),
 			},
 			timeout: {
 				type: 'number',
-				default: parseInt(process.env.KFC_TIMEOUT || '10'),
+				default: parseInt(process.env.KUBEFC_TIMEOUT || '10'),
 			},
 			grep: {
 				type: 'string',

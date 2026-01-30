@@ -4,7 +4,7 @@
 
 A beautiful CLI tool for following Kubernetes deployment logs with rich syntax highlighting and interactive UI, built with **TypeScript + Ink**.
 
-![Version](https://img.shields.io/badge/version-0.1.1-blue)
+![Version](https://img.shields.io/badge/version-0.1.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Node](https://img.shields.io/badge/node-%3E%3D14-brightgreen)
 
@@ -37,7 +37,7 @@ pnpx kubefc -n production my-deployment
 
 ```bash
 pnpm install -g @logan/kfc
-kfc --help
+kubefc --help
 ```
 
 ### From Source
@@ -48,7 +48,7 @@ cd kfc
 pnpm install
 pnpm run build
 pnpm link --global
-kfc --help
+kubefc --help
 ```
 
 ---
@@ -59,26 +59,26 @@ kfc --help
 
 ```bash
 # Follow logs for a specific deployment
-kfc my-deployment
+kubefc my-deployment
 
 # Specify namespace
-kfc -n production my-deployment
+kubefc -n production my-deployment
 
 # Specify context and namespace
-kfc -c staging-cluster -n production my-deployment
+kubefc -c staging-cluster -n production my-deployment
 
 # Custom tail lines
-kfc --tail 200 my-deployment
+kubefc --tail 200 my-deployment
 
 # Custom retry attempts
-kfc --max-retry 5 my-deployment
+kubefc --max-retry 5 my-deployment
 ```
 
 ### Interactive Mode
 
 ```bash
 # Without deployment name, shows interactive selector
-kfc -n production
+kubefc -n production
 
 # Output:
 # Select deployment:
@@ -131,15 +131,15 @@ KFC provides rich syntax highlighting for various log formats:
 ### Environment Variables
 
 ```bash
-export KFC_NAMESPACE=production    # Default namespace
-export KFC_TAIL_LINES=200          # Default tail lines
-export KFC_MAX_RETRY=5             # Default max retry attempts
+export KUBEFC_NAMESPACE=production    # Default namespace
+export KUBEFC_TAIL_LINES=200          # Default tail lines
+export KUBEFC_MAX_RETRY=5             # Default max retry attempts
 ```
 
 ### Command Line Options
 
 ```bash
-kfc --help
+kubefc --help
 
 Options:
   --namespace, -n  Kubernetes namespace (default: default)
@@ -174,7 +174,7 @@ kfc/
 │   └── utils/
 │       └── colorize.ts      # Colorization utilities
 ├── dist/                    # Compiled output
-├── bin/kfc                  # CLI executable
+├── bin/kubefc                  # CLI executable
 ├── package.json
 └── tsconfig.json
 ```
@@ -257,7 +257,7 @@ pnpm test
 kubectl get deployments -n <namespace>
 
 # Use correct namespace
-kfc -n <namespace>
+kubefc -n <namespace>
 ```
 
 ### Cannot Connect to Kubernetes
@@ -268,7 +268,7 @@ kubectl config current-context
 kubectl get pods
 
 # Specify context
-kfc -c <context> -n <namespace>
+kubefc -c <context> -n <namespace>
 ```
 
 ### Node.js Version Too Old
@@ -316,7 +316,7 @@ npx kubefc -n kube-system coredns
 
 # Or install globally
 pnpm install -g @logan/kfc
-kfc --help
+kubefc --help
 ```
 
 **Enjoy beautiful Kubernetes logs!** 🚀✨

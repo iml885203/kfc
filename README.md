@@ -4,7 +4,7 @@
 
 A beautiful CLI tool for following Kubernetes deployment logs with rich syntax highlighting and interactive UI, built with **TypeScript + Ink**.
 
-![Version](https://img.shields.io/badge/version-0.1.2-blue)
+![Version](https://img.shields.io/badge/version-0.1.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Node](https://img.shields.io/badge/node-%3E%3D14-brightgreen)
 

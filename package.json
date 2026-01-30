@@ -1,6 +1,6 @@
 {
   "name": "kubefc",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Kubernetes Follow Colorful - Follow Kubernetes deployment logs with style",
   "type": "module",
   "publishConfig": {

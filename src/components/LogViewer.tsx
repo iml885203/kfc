@@ -54,7 +54,7 @@ export default function LogViewer({
 	const [isConnected, setIsConnected] = useState(false);
 	
 	// Use custom hooks for buffer and filter management
-	const { buffer, addLine } = useLogBuffer(10000);
+	const { buffer, addLine, clear } = useLogBuffer(10000);
 	const filter = useLogFilter(
 		initialPattern,
 		initialAfter,
@@ -68,6 +68,7 @@ export default function LogViewer({
 	const [filterMode, setFilterMode] = useState(false);
 	const [filterInput, setFilterInput] = useState('');
 	const [paused, setPaused] = useState(false);
+	const [isWrap, setIsWrap] = useState(true);
 	
 	// Track current filter state for the log callback (to avoid closure staleness)
 	const currentFilter = useRef(filter);
@@ -84,7 +85,19 @@ export default function LogViewer({
 			write('\n\n\n');
 			hasInitialized.current = true;
 		}
+		// Restore wrap on exit
+		return () => {
+			write('\x1B[?7h');
+		};
 	}, []);
+
+	// Handle wrap toggling
+	useEffect(() => {
+		write(isWrap ? '\x1B[?7h' : '\x1B[?7l');
+		if (isConnected) {
+			refilterAndDisplay();
+		}
+	}, [isWrap]);
 
 	// Function to clear screen and display filtered logs
 	function refilterAndDisplay() {
@@ -122,7 +135,8 @@ export default function LogViewer({
 				const coloredLine = colorizeLogLine(highlightedLine);
 				
 				const prefix = isMatch && pattern ? chalk.red('> ') : '  ';
-				write(`${prefix}${bufferedLine.podPrefix} ${coloredLine}\n`);
+				const podPart = bufferedLine.podPrefix ? `${bufferedLine.podPrefix} ` : '';
+				write(`${prefix}${podPart}${coloredLine}\n`);
 				lastIdx = index;
 			});
 		}
@@ -219,6 +233,26 @@ export default function LogViewer({
 				setIsShowingHelp(true);
 			} else if (key.escape && onBack) {
 				onBack();
+			} else if (input === 'x' || (key.ctrl && input === 'l')) {
+				// Clear logs
+				clear();
+				refilterAndDisplay();
+			} else if (input === 'm') {
+				// Mark separator
+				const separator = chalk.dim('----------------------------------------------------------------');
+				const markLine = {
+					podPrefix: '',
+					line: '',
+					coloredLine: separator,
+					timestamp: Date.now(),
+				};
+				addLine(markLine);
+				if (!paused) {
+					write(`  ${separator}\n`);
+				}
+			} else if (input === 'w') {
+				// Toggle wrap
+				setIsWrap(prev => !prev);
 			}
 		}
 	}, { isActive: true });
@@ -339,6 +373,7 @@ export default function LogViewer({
 	
 	const pauseInfo = paused ? ' [PAUSED]' : '';
 	const modeInfo = filterMode ? ' [FILTER MODE]' : '';
+	const wrapInfo = !isWrap ? ' [NO WRAP]' : '';
 	const bufferInfo = ` (${buffer.current.length})`;
 
 	if (isShowingHelp) {
@@ -353,6 +388,9 @@ export default function LogViewer({
 					<Text><Text color="yellow" bold>p</Text>   Toggle pause/resume log streaming</Text>
 					<Text><Text color="yellow" bold>+</Text>   Increase context lines</Text>
 					<Text><Text color="yellow" bold>-</Text>   Decrease context lines</Text>
+					<Text><Text color="yellow" bold>x</Text>   Clear logs (or Ctrl+L)</Text>
+					<Text><Text color="yellow" bold>m</Text>   Add mark separator (----)</Text>
+					<Text><Text color="yellow" bold>w</Text>   Toggle text wrapping</Text>
 					<Text><Text color="yellow" bold>?</Text>   Show this help</Text>
 					<Text><Text color="yellow" bold>Esc</Text> Go back</Text>
 				</Box>
@@ -374,6 +412,7 @@ export default function LogViewer({
 					<Text color="cyan"> {deployment}</Text>
 					<Text color="magenta">{filterInfo}</Text>
 					<Text color="yellow">{pauseInfo}</Text>
+					<Text color="red">{wrapInfo}</Text>
 					<Text color="yellow">{modeInfo}</Text>
 					<Text dimColor>{bufferInfo}</Text>
 				</Text>

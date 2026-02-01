@@ -32,6 +32,7 @@ npm version major
 ```
 
 This automatically:
+
 - Updates version in `package.json`
 - Creates git commit
 - Creates git tag
@@ -45,19 +46,27 @@ git push && git push --tags
 ### 3. Create GitHub Release
 
 Using gh CLI:
+
 ```bash
-gh release create v0.1.9 \
-  --title "v0.1.9 - Brief description" \
+gh release create v0.2.0 \
+  --title "v0.2.0" \
   --notes "
-## 🎯 New Features
-- Feature 1
+## 🚀 New Features
+- Feature A description
+- Feature B description
 
 ## 🐛 Bug Fixes
-- Fix 1
+- Fix X description
+
+## 🛠 Internal
+- Internal changes
 "
 ```
 
+> **Note**: If you are pushing directly to master (not using Pull Requests), the `--generate-notes` flag will likely produce an empty changelog. **Always provide manual notes** describing the changes.
+
 Or manually:
+
 - Visit https://github.com/iml885203/kfc/releases/new
 - Select the tag you just pushed
 - Fill in release notes
@@ -66,6 +75,7 @@ Or manually:
 ### 4. Wait for Automatic Publishing
 
 GitHub Actions will automatically (~30 seconds):
+
 1. Build the project
 2. Publish to npm with OIDC authentication
 3. Generate provenance attestation

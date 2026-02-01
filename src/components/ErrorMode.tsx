@@ -3,7 +3,7 @@
  */
 
 import type { ErrorEntry } from '../types/error.js'
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import * as React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { copyToClipboard, formatErrorLine, formatErrorWithContext } from '../utils/clipboard.js'
@@ -31,6 +31,7 @@ interface ErrorModeProps {
   copyToClipboard?: (text: string) => Promise<boolean>
   selectedIndex?: number | null // Controlled selection from parent
   onSelectionChange?: (index: number | null) => void // Callback for selection changes
+  scrollOffset?: number // Scroll offset for windowed display
 }
 
 export default function ErrorMode({
@@ -42,7 +43,30 @@ export default function ErrorMode({
   copyToClipboard: customCopyToClipboard = copyToClipboard,
   selectedIndex: controlledSelectedIndex,
   onSelectionChange,
+  scrollOffset = 0,
 }: ErrorModeProps) {
+  // Get terminal height for dynamic display calculation
+  const { stdout } = useStdout()
+  const terminalHeight = stdout?.rows || 25 // Default 25 rows
+
+  // Calculate available height and max visible errors
+  // UI overhead: Status bar (3) + Copy message (0-3) + Instructions (2) + Footer (3) + Scroll indicators (0-4) = 10-17 lines
+  const [copyMessage, setCopyMessage] = useState<string | null>(null)
+  const baseOverhead = copyMessage ? 13 : 10
+  const scrollIndicatorOverhead = (scrollOffset > 0 ? 2 : 0) + (scrollOffset + 1 < errors.length ? 2 : 0)
+  const uiOverhead = baseOverhead + scrollIndicatorOverhead
+  const availableHeight = Math.max(10, terminalHeight - uiOverhead)
+
+  // Each error: ~6 lines average (border + header + pod info + error line)
+  // Selected error expands to ~15-30 lines, but we use conservative estimate
+  const estimatedLinesPerError = 6
+  const maxVisibleErrors = Math.max(1, Math.floor(availableHeight / estimatedLinesPerError))
+
+  // Calculate visible window
+  const visibleErrors = errors.slice(scrollOffset, scrollOffset + maxVisibleErrors)
+  const hasMoreAbove = scrollOffset > 0
+  const hasMoreBelow = scrollOffset + maxVisibleErrors < errors.length
+
   // Use controlled selection if provided, otherwise use internal state
   const [internalSelectedIndex, setInternalSelectedIndex] = useState<number | null>(null)
   const selectedIndex = controlledSelectedIndex !== undefined ? controlledSelectedIndex : internalSelectedIndex
@@ -55,8 +79,6 @@ export default function ErrorMode({
       setInternalSelectedIndex(index)
     }
   }, [controlledSelectedIndex, onSelectionChange])
-
-  const [copyMessage, setCopyMessage] = useState<string | null>(null)
 
   // Auto-clear copy message after 2 seconds
   useEffect(() => {
@@ -248,9 +270,13 @@ export default function ErrorMode({
         <Text dimColor>
           Use
           {' '}
+          <Text color="yellow">↑↓</Text>
+          {' '}
+          or
+          {' '}
           <Text color="yellow">
             1-
-            {Math.min(9, errors.length)}
+            {Math.min(maxVisibleErrors, errors.length)}
           </Text>
           {' '}
           to select •
@@ -266,9 +292,24 @@ export default function ErrorMode({
         </Text>
       </Box>
 
+      {/* Scroll indicator - more errors above */}
+      {hasMoreAbove && (
+        <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
+          <Text dimColor>
+            ↑
+            {scrollOffset}
+            {' '}
+            more error
+            {scrollOffset > 1 ? 's' : ''}
+            {' '}
+            above
+          </Text>
+        </Box>
+      )}
+
       {/* Error List */}
       <Box marginTop={1} flexDirection="column">
-        {errors.slice(0, 9).map((error) => {
+        {visibleErrors.map((error) => {
           const isSelected = selectedIndex === error.index
           const borderStyle = isSelected ? 'double' : 'round'
           const borderColor = isSelected ? 'yellow' : 'red'
@@ -368,17 +409,22 @@ export default function ErrorMode({
           )
         })}
 
-        {errors.length > 9 && (
-          <Box marginTop={1}>
-            <Text dimColor>
-              ... and
-              {errors.length - 9}
-              {' '}
-              more errors (showing first 9)
-            </Text>
-          </Box>
-        )}
       </Box>
+
+      {/* Scroll indicator - more errors below */}
+      {hasMoreBelow && (
+        <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
+          <Text dimColor>
+            ↓
+            {errors.length - scrollOffset - maxVisibleErrors}
+            {' '}
+            more error
+            {errors.length - scrollOffset - maxVisibleErrors > 1 ? 's' : ''}
+            {' '}
+            below
+          </Text>
+        </Box>
+      )}
 
       {/* Footer */}
       <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>

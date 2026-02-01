@@ -60,7 +60,7 @@ export default function LogViewer({
   errorDetector,
 }: LogViewerProps) {
   const { exit } = useApp()
-  const { write: defaultWrite } = useStdout()
+  const { stdout, write: defaultWrite } = useStdout()
 
   // Stabilize write function to avoid unnecessary effect re-runs
   // Use ref to store the latest write function without triggering re-renders
@@ -100,6 +100,7 @@ export default function LogViewer({
   // Error mode state
   const [errorMode, setErrorMode] = useState(false)
   const [selectedErrorIndex, setSelectedErrorIndex] = useState<number | null>(null)
+  const [errorScrollOffset, setErrorScrollOffset] = useState(0)
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
 
   // Error collection hook - runs continuously in background
@@ -233,10 +234,56 @@ export default function LogViewer({
 
     // Error mode shortcuts
     if (errorMode) {
+      // Calculate maxVisibleErrors (same logic as ErrorMode component)
+      const terminalHeight = stdout?.rows || 25
+      const uiOverhead = copyMessage ? 13 : 10
+      const availableHeight = Math.max(10, terminalHeight - uiOverhead)
+      const estimatedLinesPerError = 6
+      const maxVisibleErrors = Math.max(1, Math.floor(availableHeight / estimatedLinesPerError))
+
       // Number keys 1-9 to select error
       const num = Number.parseInt(input)
       if (!Number.isNaN(num) && num >= 1 && num <= Math.min(9, errors.length)) {
         setSelectedErrorIndex(num)
+        // Adjust scroll to show selected error
+        const targetIndex = num - 1 // Convert to 0-based
+        if (targetIndex < errorScrollOffset) {
+          setErrorScrollOffset(targetIndex)
+        }
+        else if (targetIndex >= errorScrollOffset + maxVisibleErrors) {
+          setErrorScrollOffset(Math.max(0, targetIndex - maxVisibleErrors + 1))
+        }
+        return
+      }
+
+      // Up arrow - select previous error
+      if (key.upArrow) {
+        setSelectedErrorIndex((prev) => {
+          if (prev === null || prev <= 1)
+            return 1 // At top, stay at first
+          const newIndex = prev - 1
+          // Scroll up if needed (newIndex is 1-based, convert to 0-based for offset)
+          if (newIndex - 1 < errorScrollOffset) {
+            setErrorScrollOffset(Math.max(0, newIndex - 1))
+          }
+          return newIndex // Move up
+        })
+        return
+      }
+
+      // Down arrow - select next error
+      if (key.downArrow) {
+        setSelectedErrorIndex((prev) => {
+          const current = prev === null ? 0 : prev
+          if (current >= errors.length)
+            return errors.length // At bottom, stay at last
+          const newIndex = current + 1
+          // Scroll down if needed (newIndex is 1-based, convert to 0-based for offset)
+          if (newIndex - 1 >= errorScrollOffset + maxVisibleErrors) {
+            setErrorScrollOffset(Math.min(errors.length - maxVisibleErrors, newIndex - maxVisibleErrors))
+          }
+          return newIndex // Move down
+        })
         return
       }
 
@@ -289,6 +336,7 @@ export default function LogViewer({
       if (input === 'e' || key.escape) {
         setErrorMode(false)
         setSelectedErrorIndex(null)
+        setErrorScrollOffset(0)
         setCopyMessage(null)
         // Restore logs display
         if (isConnected) {
@@ -346,6 +394,7 @@ export default function LogViewer({
         // Enter error mode
         setErrorMode(true)
         setSelectedErrorIndex(null)
+        setErrorScrollOffset(0)
       }
       else if (input === '/') {
         // Enter filter mode
@@ -576,9 +625,9 @@ export default function LogViewer({
             Enter error mode (view only errors)
           </Text>
           <Text>
-            <Text color="yellow" bold>1-9</Text>
+            <Text color="yellow" bold>↑↓ or 1-9</Text>
             {' '}
-            Select error by number (in error mode)
+            Navigate/select errors (in error mode)
           </Text>
           <Text>
             <Text color="yellow" bold>y</Text>
@@ -679,6 +728,7 @@ export default function LogViewer({
           copyToClipboard={copyToClipboard}
           selectedIndex={selectedErrorIndex}
           onSelectionChange={setSelectedErrorIndex}
+          scrollOffset={errorScrollOffset}
         />
 
         {/* Copy message overlay */}

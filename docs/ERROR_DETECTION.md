@@ -32,12 +32,12 @@ KFC supports two configuration formats, loaded in priority order (first found is
 // ~/.kfctl/errorDetector.js
 export function errorDetector(line) {
   // ASP.NET Core format: [HH:mm:ss.fff ERR]
-  if (/\[\d{2}:\d{2}:\d{2}\.\d+\s+(ERR|FATAL|CRITICAL)\]/.test(line)) {
+  if (/\[\d{2}:\d{2}:\d{2}\.\d+\s+(?:ERR|FATAL|CRITICAL)\]/.test(line)) {
     return true
   }
 
   // Standard format: [ERROR], [FATAL]
-  if (/\[(ERROR|FATAL|CRITICAL|ERR)\]/i.test(line)) {
+  if (/\[(?:ERROR|FATAL|CRITICAL|ERR)\]/i.test(line)) {
     return true
   }
 
@@ -48,6 +48,7 @@ export function errorDetector(line) {
 ## Default Behavior
 
 If no custom configuration is found, KFC detects errors based on:
+
 - Log level markers: `[ERROR]`, `[FATAL]`, `[CRITICAL]`
 - Error keywords: `ERROR`, `FATAL`, `EXCEPTION`
 - Stack traces
@@ -56,6 +57,7 @@ If no custom configuration is found, KFC detects errors based on:
 ## Troubleshooting
 
 **Custom detector not being used:**
+
 - Check file exists at `~/.kfctl/errorDetector.json` or `~/.kfctl/errorDetector.js`
 - Verify file exports `errorDetector` function
 - Check console for error messages

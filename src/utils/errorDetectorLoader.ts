@@ -6,16 +6,20 @@ import path from 'node:path'
 import { defaultErrorDetector } from './errorDetector.js'
 import { createDetectorFromConfig } from './errorDetectorConfig.js'
 
-const USER_CONFIG_DIR = path.join(os.homedir(), '.kfctl')
 const ERROR_DETECTOR_FILES = [
   'errorDetector.json',
   'errorDetector.js',
   'errorDetector.ts',
 ]
 
+function getUserConfigDir() {
+  return path.join(os.homedir(), '.kfctl')
+}
+
 export async function loadErrorDetector(): Promise<ErrorDetector> {
+  const userConfigDir = getUserConfigDir()
   for (const filename of ERROR_DETECTOR_FILES) {
-    const filePath = path.join(USER_CONFIG_DIR, filename)
+    const filePath = path.join(userConfigDir, filename)
 
     if (fs.existsSync(filePath)) {
       try {
@@ -59,12 +63,13 @@ export async function loadErrorDetector(): Promise<ErrorDetector> {
 }
 
 export function getErrorDetectorPath(): string {
-  return path.join(USER_CONFIG_DIR, 'errorDetector.json')
+  return path.join(getUserConfigDir(), 'errorDetector.json')
 }
 
 export function hasCustomErrorDetector(): boolean {
+  const userConfigDir = getUserConfigDir()
   return ERROR_DETECTOR_FILES.some((filename) => {
-    const filePath = path.join(USER_CONFIG_DIR, filename)
+    const filePath = path.join(userConfigDir, filename)
     return fs.existsSync(filePath)
   })
 }

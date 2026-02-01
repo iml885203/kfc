@@ -8,9 +8,9 @@ Feature: Error Handling and Monitoring
 
   Scenario: Background Error Collection
     When the log stream receives the following lines:
-      | [INFO] Starting up... |
+      | [INFO] Starting up...              |
       | [ERROR] Database connection failed |
-      | [FATAL] System crash imminent |
+      | [FATAL] System crash imminent      |
     And I press "e"
     Then I should see "2 errors found" in the status bar
     And I should see "Database connection failed" in the list
@@ -19,19 +19,17 @@ Feature: Error Handling and Monitoring
   Scenario: Switching Modes
     Given I see 3 errors in the error list
     When I press "e"
-    Then I should see "[ERROR MODE]"
-    When I press "e"
-    Then I should NOT see "[ERROR MODE]"
+    Then I should see "Error Mode"
+    When I hit Escape
+    Then I should NOT see "Error Mode"
     And I should see the normal log view
 
   Scenario: Copying Error to Clipboard
     Given I am in error mode with the following error:
       | [ERROR] NullReferenceException at Line 42 |
-    When I press "1"
-    And I press "y"
+    When I type "y" into the terminal
     Then the clipboard should contain "NullReferenceException at Line 42"
-    And I should see "Copied to clipboard" message
-
+    And I should see "Copied error to clipboard" message
   # Scenario: Copying Error with Context
   #   Given I am in error mode with an error that has context
   #   When I press "1"

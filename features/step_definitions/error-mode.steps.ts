@@ -24,6 +24,20 @@ const waitFor = async (condition: () => void, timeout = 2000) => {
 // Note: Common steps like "I am viewing logs", "I press", "I should see", "the log stream receives" are in common.steps.ts
 // This file only contains error-mode specific steps
 
+When('I type {string} into the terminal', async function (this: KfcWorld, text: string) {
+  if (this.rendered) {
+    this.rendered.stdin.write(text);
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+});
+
+When('I hit Escape', async function (this: KfcWorld) {
+  if (this.rendered) {
+    this.rendered.stdin.write('\x1B');
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+});
+
 Then('I should see {string} in the status bar', async function (this: KfcWorld, text: string) {
   await waitFor(() => {
     // Combine Ink-rendered output and captured stdout
@@ -101,7 +115,7 @@ Then('I should see the normal log view', async function (this: KfcWorld) {
         const inkOutput = stripAnsiCodes(this.rendered!.lastFrame() || '');
         const stdoutOutput = stripAnsiCodes(this.stdoutOutput);
         const output = inkOutput + stdoutOutput;
-        expect(output).to.not.include('[ERROR MODE]');
+        expect(output).to.not.include('Error Mode');
     });
 });
 

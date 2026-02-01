@@ -1,6 +1,6 @@
 {
   "name": "kfctl",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Kubernetes Follow Colorful - Follow Kubernetes deployment logs with style",
   "type": "module",
   "publishConfig": {

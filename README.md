@@ -28,16 +28,16 @@ A beautiful CLI tool for following Kubernetes deployment logs with rich syntax h
 ### Using npx (Recommended)
 
 ```bash
-npx kubefc -n production my-deployment
+npx kfctl -n production my-deployment
 # or
-pnpx kubefc -n production my-deployment
+pnpx kfctl -n production my-deployment
 ```
 
 ### Global Installation
 
 ```bash
 pnpm install -g @logan/kfc
-kubefc --help
+kfctl --help
 ```
 
 ### From Source
@@ -48,7 +48,7 @@ cd kfc
 pnpm install
 pnpm run build
 pnpm link --global
-kubefc --help
+kfctl --help
 ```
 
 ---
@@ -59,26 +59,26 @@ kubefc --help
 
 ```bash
 # Follow logs for a specific deployment
-kubefc my-deployment
+kfctl my-deployment
 
 # Specify namespace
-kubefc -n production my-deployment
+kfctl -n production my-deployment
 
 # Specify context and namespace
-kubefc -c staging-cluster -n production my-deployment
+kfctl -c staging-cluster -n production my-deployment
 
 # Custom tail lines
-kubefc --tail 200 my-deployment
+kfctl --tail 200 my-deployment
 
 # Custom retry attempts
-kubefc --max-retry 5 my-deployment
+kfctl --max-retry 5 my-deployment
 ```
 
 ### Interactive Mode
 
 ```bash
 # Without deployment name, shows interactive selector
-kubefc -n production
+kfctl -n production
 
 # Output:
 # Select deployment:
@@ -131,15 +131,15 @@ KFC provides rich syntax highlighting for various log formats:
 ### Environment Variables
 
 ```bash
-export KUBEFC_NAMESPACE=production    # Default namespace
-export KUBEFC_TAIL_LINES=200          # Default tail lines
-export KUBEFC_MAX_RETRY=5             # Default max retry attempts
+export KFCTL_NAMESPACE=production    # Default namespace
+export KFCTL_TAIL_LINES=200          # Default tail lines
+export KFCTL_MAX_RETRY=5             # Default max retry attempts
 ```
 
 ### Command Line Options
 
 ```bash
-kubefc --help
+kfctl --help
 
 Options:
   --namespace, -n  Kubernetes namespace (default: default)
@@ -174,7 +174,7 @@ kfc/
 │   └── utils/
 │       └── colorize.ts      # Colorization utilities
 ├── dist/                    # Compiled output
-├── bin/kubefc                  # CLI executable
+├── bin/kfctl                  # CLI executable
 ├── package.json
 └── tsconfig.json
 ```
@@ -231,7 +231,7 @@ pnpm test
 - ✅ **React for CLI** - Build CLI with React components
 - ✅ **Rich UI** - Built-in Spinner, SelectInput, and more
 - ✅ **Easy Maintenance** - Familiar React development patterns
-- ✅ **npx Friendly** - Run directly with `npx kubefc`
+- ✅ **npx Friendly** - Run directly with `npx kfctl`
 - ✅ **No Compilation Dependencies** - No need for Go toolchain
 
 ### Comparison with Other Approaches
@@ -257,7 +257,7 @@ pnpm test
 kubectl get deployments -n <namespace>
 
 # Use correct namespace
-kubefc -n <namespace>
+kfctl -n <namespace>
 ```
 
 ### Cannot Connect to Kubernetes
@@ -268,7 +268,7 @@ kubectl config current-context
 kubectl get pods
 
 # Specify context
-kubefc -c <context> -n <namespace>
+kfctl -c <context> -n <namespace>
 ```
 
 ### Node.js Version Too Old
@@ -312,11 +312,11 @@ MIT
 
 ```bash
 # Try it now!
-npx kubefc -n kube-system coredns
+npx kfctl -n kube-system coredns
 
 # Or install globally
 pnpm install -g @logan/kfc
-kubefc --help
+kfctl --help
 ```
 
 **Enjoy beautiful Kubernetes logs!** 🚀✨

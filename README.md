@@ -86,39 +86,6 @@ Options:
 
 ---
 
-## ⌨️ Interactive Mode
-
-Once logs are streaming, use these keyboard shortcuts:
-
-### Filtering
-- `/` - Enter filter mode (type pattern and press Enter)
-- `c` - Clear all filters
-- `i` - Toggle case-insensitive matching
-- `v` - Toggle invert match (show non-matching lines)
-
-### Context
-- `+` - Increase context lines (show more lines around matches)
-- `-` - Decrease context lines
-
-### Playback
-- `p` - Pause/resume log stream
-- `q` - Quit
-
-### Help
-- `?` - Show help
-
-**Example workflow:**
-```
-1. Start: kfctl -n production api
-2. Press / and type "ERROR" to filter errors
-3. Press + three times to see 3 lines of context
-4. Press i to ignore case
-5. Press p to pause and examine
-6. Press q to quit
-```
-
----
-
 ## 🐛 Troubleshooting
 
 ### Deployment Not Found

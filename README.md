@@ -2,7 +2,7 @@
 
 <img src="assets/logo.png" width="200" alt="KFC Logo">
 
-A beautiful CLI tool for following Kubernetes deployment logs with rich syntax highlighting and interactive UI, built with **TypeScript + Ink**.
+A beautiful CLI tool for following Kubernetes deployment logs with rich syntax highlighting and interactive filtering.
 
 ![Version](https://img.shields.io/badge/version-0.1.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -12,12 +12,11 @@ A beautiful CLI tool for following Kubernetes deployment logs with rich syntax h
 
 ## ✨ Features
 
-- 🎨 **Rich Syntax Highlighting** - JSON, strings, numbers, booleans, URLs, IPs, and more
+- 🎨 **Rich Syntax Highlighting** - Colorized log levels, JSON, timestamps, URLs, IPs
 - 🔄 **Auto-Reconnect** - Automatically reconnects when connection is lost
-- 🎯 **Interactive Selection** - Beautiful Ink-powered deployment selector
+- 🎯 **Interactive Selection** - Beautiful deployment selector when no deployment specified
+- ⌨️ **Interactive Filtering** - Real-time log filtering with keyboard shortcuts
 - 📊 **Real-time Status** - Live connection status indicator
-- 🚀 **Fast & Lightweight** - Built with TypeScript for performance
-- 🎭 **React for CLI** - Powered by Ink (React for terminal)
 - 🌍 **Cross-platform** - Works on Windows, macOS, and Linux
 - 📦 **Zero Config** - Works out of the box with kubectl
 
@@ -29,25 +28,12 @@ A beautiful CLI tool for following Kubernetes deployment logs with rich syntax h
 
 ```bash
 npx kfctl -n production my-deployment
-# or
-pnpx kfctl -n production my-deployment
 ```
 
 ### Global Installation
 
 ```bash
-pnpm install -g @logan/kfc
-kfctl --help
-```
-
-### From Source
-
-```bash
-git clone <repository_url>
-cd kfc
-pnpm install
-pnpm run build
-pnpm link --global
+npm install -g @logan/kfc
 kfctl --help
 ```
 
@@ -67,229 +53,90 @@ kfctl -n production my-deployment
 # Specify context and namespace
 kfctl -c staging-cluster -n production my-deployment
 
-# Custom tail lines
-kfctl --tail 200 my-deployment
+# Filter logs with grep
+kfctl -n production -g "ERROR" my-deployment
 
-# Custom retry attempts
-kfctl --max-retry 5 my-deployment
+# Show context lines around matches
+kfctl -n production -g "ERROR" -C 3 my-deployment
 ```
 
-### Interactive Mode
+### Interactive Selector
 
 ```bash
 # Without deployment name, shows interactive selector
 kfctl -n production
-
-# Output:
-# Select deployment:
-# ❯ app-deployment
-#   api-deployment
-#   worker-deployment
-```
-
----
-
-## 🎨 Syntax Highlighting
-
-KFC provides rich syntax highlighting for various log formats:
-
-### Log Levels
-
-- 🔴 **ERROR/FATAL** - Red bold
-- 🟡 **WARN/WARNING** - Yellow
-- 🟢 **INFO** - Green
-- 🔵 **DEBUG** - Cyan
-- ⚪ **TRACE** - White
-
-### Syntax Elements
-
-- 🔵 **Timestamps** - Blue (ISO 8601)
-- 🟢 **Strings** - Green (`"..."`)
-- 🟣 **Numbers** - Magenta (`123`, `3.14`)
-- 🟡 **Booleans** - Yellow (`true`, `false`)
-- ⚫ **Null** - Gray (`null`)
-- 🔵 **URLs** - Blue underlined
-- 🟣 **IP Addresses** - Magenta
-- 🔵 **File Paths** - Cyan
-
-### JSON Support
-
-```json
-{
-  "timestamp": "2026-01-29T13:00:00Z", // Cyan key, Green value
-  "level": "INFO", // Cyan key, Green value
-  "user_id": 12345, // Cyan key, Magenta number
-  "success": true, // Cyan key, Yellow boolean
-  "error": null // Cyan key, Gray null
-}
-```
-
----
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-```bash
-export KFCTL_NAMESPACE=production    # Default namespace
-export KFCTL_TAIL_LINES=200          # Default tail lines
-export KFCTL_MAX_RETRY=5             # Default max retry attempts
 ```
 
 ### Command Line Options
 
 ```bash
-kfctl --help
-
 Options:
-  --namespace, -n  Kubernetes namespace (default: default)
-  --context, -c    Kubernetes context
-  --tail           Number of lines to show from the end (default: 100)
-  --max-retry      Maximum retry attempts (default: 10)
-  --grep, -g       Filter logs by pattern (regex supported)
-  --after, -A      Show N lines after match (default: 0)
-  --before, -B     Show N lines before match (default: 0)
-  --context, -C    Show N lines before and after match (default: 0)
-  --ignore-case, -i  Case-insensitive pattern matching
-  --invert, -v     Invert match (show non-matching lines)
-  --version, -v    Show version
-  --help, -h       Show help
+  --namespace, -n    Kubernetes namespace (default: default)
+  --context, -c      Kubernetes context
+  --tail             Number of lines to show (default: 100)
+  --max-retry        Maximum retry attempts (default: 10)
+  --grep, -g         Filter logs by pattern (regex supported)
+  --after, -A        Show N lines after match
+  --before, -B       Show N lines before match
+  --context, -C      Show N lines before and after match
+  --ignore-case, -i  Case-insensitive matching
+  --invert, -v       Invert match (show non-matching lines)
+  --help, -h         Show help
 ```
 
 ---
 
-## 🛠️ Development
+## ⌨️ Interactive Mode
 
-### Project Structure
+Once logs are streaming, use these keyboard shortcuts:
 
+### Filtering
+- `/` - Enter filter mode (type pattern and press Enter)
+- `c` - Clear all filters
+- `i` - Toggle case-insensitive matching
+- `v` - Toggle invert match (show non-matching lines)
+
+### Context
+- `+` - Increase context lines (show more lines around matches)
+- `-` - Decrease context lines
+
+### Playback
+- `p` - Pause/resume log stream
+- `q` - Quit
+
+### Help
+- `?` - Show help
+
+**Example workflow:**
 ```
-kfc/
-├── src/
-│   ├── cli.tsx              # CLI entry point
-│   ├── components/
-│   │   ├── App.tsx          # Main app component
-│   │   └── LogViewer.tsx    # Log viewer component
-│   ├── k8s/
-│   │   └── client.ts        # Kubernetes client
-│   └── utils/
-│       └── colorize.ts      # Colorization utilities
-├── dist/                    # Compiled output
-├── bin/kfctl                  # CLI executable
-├── package.json
-└── tsconfig.json
+1. Start: kfctl -n production api
+2. Press / and type "ERROR" to filter errors
+3. Press + three times to see 3 lines of context
+4. Press i to ignore case
+5. Press p to pause and examine
+6. Press q to quit
 ```
-
-### Development Commands
-
-```bash
-# Install dependencies
-pnpm install
-
-# Development mode (with tsx)
-pnpm run dev -- -n production my-deployment
-
-# Build
-pnpm run build
-
-# Run built version
-pnpm start -- --help
-
-# Test
-pnpm test
-```
-
-### Tech Stack
-
-- **TypeScript** - Type-safe JavaScript
-- **Ink** - React for CLI
-- **@kubernetes/client-node** - Official Kubernetes Node.js client
-- **chalk** - Terminal colors
-- **meow** - CLI argument parsing
-
----
-
-## 📦 Dependencies
-
-### Required
-
-- ✅ **kubectl** - Kubernetes command-line tool
-- ✅ **Node.js** - v14 or higher
-
-### Not Required
-
-- ❌ kubecolor (built-in syntax highlighting)
-- ❌ fzf (built-in Ink selector)
-- ❌ Go toolchain
-
----
-
-## 🎯 Why TypeScript + Ink?
-
-### Advantages
-
-- ✅ **Type Safety** - Full TypeScript type checking
-- ✅ **React for CLI** - Build CLI with React components
-- ✅ **Rich UI** - Built-in Spinner, SelectInput, and more
-- ✅ **Easy Maintenance** - Familiar React development patterns
-- ✅ **npx Friendly** - Run directly with `npx kfctl`
-- ✅ **No Compilation Dependencies** - No need for Go toolchain
-
-### Comparison with Other Approaches
-
-| Feature        | zsh Script              | Go CLI        | TypeScript + Ink |
-| -------------- | ----------------------- | ------------- | ---------------- |
-| Language       | Shell                   | Go            | TypeScript       |
-| UI Framework   | None                    | None          | Ink (React)      |
-| Type Safety    | ❌                      | ✅            | ✅               |
-| Cross-platform | ❌                      | ✅            | ✅               |
-| npx Support    | ❌                      | Needs wrapper | ✅ Native        |
-| Development    | Simple                  | Traditional   | React Components |
-| Dependencies   | kubectl, kubecolor, fzf | kubectl       | kubectl, Node.js |
 
 ---
 
 ## 🐛 Troubleshooting
 
 ### Deployment Not Found
-
 ```bash
-# Check if namespace is correct
+# Check namespace
 kubectl get deployments -n <namespace>
-
-# Use correct namespace
-kfctl -n <namespace>
+kfctl -n <namespace> <deployment>
 ```
 
 ### Cannot Connect to Kubernetes
-
 ```bash
-# Check kubectl configuration
+# Verify kubectl configuration
 kubectl config current-context
 kubectl get pods
 
-# Specify context
-kfctl -c <context> -n <namespace>
+# Specify context explicitly
+kfctl -c <context> -n <namespace> <deployment>
 ```
-
-### Node.js Version Too Old
-
-```bash
-# Check Node.js version
-node --version
-
-# Requires v14 or higher
-# Use nvm to upgrade
-nvm install 18
-nvm use 18
-```
-
----
-
-## 📚 Documentation
-
-- [README_TS.md](README_TS.md) - Detailed TypeScript version documentation
-- [COLOR_OUTPUT.md](COLOR_OUTPUT.md) - Color output features
-- [KUBERNETES_SETUP.md](KUBERNETES_SETUP.md) - Kubernetes environment setup
 
 ---
 
@@ -299,24 +146,4 @@ MIT
 
 ---
 
-## 🙏 Acknowledgments
-
-- [Ink](https://github.com/vadimdemedes/ink) - React for CLI
-- [kubectl](https://kubernetes.io/docs/reference/kubectl/) - Kubernetes CLI
-- [@kubernetes/client-node](https://github.com/kubernetes-client/javascript) - Kubernetes Node.js client
-- [chalk](https://github.com/chalk/chalk) - Terminal colors
-
----
-
-## 🎊 Get Started
-
-```bash
-# Try it now!
-npx kfctl -n kube-system coredns
-
-# Or install globally
-pnpm install -g @logan/kfc
-kfctl --help
-```
-
-**Enjoy beautiful Kubernetes logs!** 🚀✨
+**Enjoy beautiful Kubernetes logs!** 🚀

@@ -1,29 +1,16 @@
 {
   "name": "kfctl",
+  "type": "module",
   "version": "0.1.9",
   "description": "Kubernetes Follow Colorful - Follow Kubernetes deployment logs with style",
-  "type": "module",
   "publishConfig": {
     "access": "public"
   },
-  "bin": {
-    "kfctl": "./dist/cli.js"
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsx src/cli.tsx",
-    "start": "node dist/cli.js",
-    "prepublishOnly": "pnpm run build",
-    "test": "NODE_OPTIONS='--import tsx' cucumber-js features/**/*.feature --import 'features/step_definitions/**/*.ts'",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --project tsconfig.test.json",
-    "prepare": "husky"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx,mjs}": [
-      "eslint --fix"
-    ]
+  "author": "iml88503",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iml885203/kfc.git"
   },
   "keywords": [
     "kubernetes",
@@ -34,18 +21,29 @@
     "ink",
     "typescript"
   ],
-  "author": "iml88503",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/iml885203/kfc.git"
+  "main": "index.js",
+  "bin": {
+    "kfctl": "./dist/cli.js"
   },
   "files": [
-    "dist/",
-    "README.md"
+    "README.md",
+    "dist/"
   ],
   "engines": {
     "node": ">=14"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.tsx",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "pnpm run build",
+    "test": "NODE_OPTIONS='--import tsx' cucumber-js features/**/*.feature --import 'features/step_definitions/**/*.ts'",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --project tsconfig.test.json",
+    "prepare": "husky"
   },
   "os": [
     "darwin",
@@ -56,7 +54,6 @@
     "x64",
     "arm64"
   ],
-  "main": "index.js",
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
     "chalk": "^5.6.2",
@@ -87,5 +84,10 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs}": [
+      "eslint --fix"
+    ]
   }
 }

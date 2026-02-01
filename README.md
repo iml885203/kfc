@@ -83,6 +83,7 @@ Options:
   --context, -C      Show N lines before and after match
   --ignore-case, -i  Case-insensitive matching
   --invert, -v       Invert match (show non-matching lines)
+  --init-error-detector  Create custom error detector template file
   --help, -h         Show help
 ```
 
@@ -92,6 +93,20 @@ Press `?` in interactive mode to see all shortcuts. Key features:
 - `e` - Error mode (auto-collect errors, copy with y/Y)
 - `/` - Filter logs
 - `p` - Pause/resume
+
+### Custom Error Detection
+
+Customize error detection to match your log format:
+
+```bash
+# Create configuration template
+kfctl --init-error-detector
+
+# Edit ~/.kfctl/errorDetector.json
+# KFC will automatically use your configuration
+```
+
+Supports JSON configuration (recommended) or JavaScript files. See [docs/ERROR_DETECTION.md](docs/ERROR_DETECTION.md) for details.
 
 ---
 

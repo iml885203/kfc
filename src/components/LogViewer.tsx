@@ -1,3 +1,4 @@
+import type { ErrorDetector } from '../utils/errorDetector.js'
 import chalk from 'chalk'
 import { Box, Text, useApp, useInput, useStdout } from 'ink'
 import Spinner from 'ink-spinner'
@@ -35,6 +36,7 @@ interface LogViewerProps {
   copyToClipboard?: typeof defaultCopyToClipboard
   useInputHook?: typeof useInput
   stdoutWriter?: StdoutWriter // Dependency injection for stdout writes (for testing)
+  errorDetector?: ErrorDetector // Custom error detector function
 }
 
 export default function LogViewer({
@@ -55,6 +57,7 @@ export default function LogViewer({
   copyToClipboard = defaultCopyToClipboard,
   useInputHook = useInput,
   stdoutWriter: injectedStdoutWriter,
+  errorDetector,
 }: LogViewerProps) {
   const { exit } = useApp()
   const { write: defaultWrite } = useStdout()
@@ -104,45 +107,23 @@ export default function LogViewer({
     deployment,
     namespace,
     context,
+    errorDetector ? { errorDetector } : undefined,
   )
 
   // Track current filter state for the log callback (to avoid closure staleness)
   const currentFilter = useRef(filter)
   const isConnectedRef = useRef(isConnected)
-  useEffect(() => {
-    currentFilter.current = filter
-    isConnectedRef.current = isConnected
-    // Re-filter when filter settings change
-    refilterAndDisplay()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, isConnected]) // refilterAndDisplay uses stable write via useCallback
 
-  // Initialize screen with space for status bar
-  const hasInitialized = useRef(false)
-  useEffect(() => {
-    if (!hasInitialized.current) {
-      write('\n\n\n')
-      hasInitialized.current = true
-    }
-    // Restore wrap on exit
-    return () => {
-      write('\x1B[?7h')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // write is stable via useCallback, no need to include in deps
+  // CRITICAL: Use ref to store latest addErrorLogLine to avoid stale closure
+  // Reason: addErrorLogLine is used in followLogs callback (WebSocket/streaming callback)
+  // which is created once during component initialization and never recreated.
+  // Even though errorDetector is now loaded synchronously, addErrorLogLine can still
+  // change when useErrorCollection re-executes due to other dependency changes
+  // (e.g., errors state updates). Without ref, the callback would capture the old closure.
+  const addErrorLogLineRef = useRef(addErrorLogLine)
+  const errorDetectorRef = useRef(errorDetector)
 
-  // Handle wrap toggling
-  useEffect(() => {
-    write(isWrap ? '\x1B[?7h' : '\x1B[?7l')
-    if (isConnected) {
-      refilterAndDisplay()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWrap]) // write is stable via useCallback, no need to include in deps
-
-  // Function to clear screen and display filtered logs
-  function refilterAndDisplay() {
-    // Clear screen
+  const refilterAndDisplay = useCallback(() => {
     write('\x1Bc')
 
     const { pattern, ignoreCase, invert, context, before, after } = currentFilter.current
@@ -163,26 +144,50 @@ export default function LogViewer({
     else {
       let lastIdx = -2
       filtered.forEach(({ bufferedLine, isMatch, index }) => {
-        // Add separator for gaps
         if (index - lastIdx > 1 && pattern) {
           write(chalk.gray('--\n'))
         }
 
-        // Highlight matches in the line
         const highlightedLine = pattern && isMatch
           ? highlightMatches(bufferedLine.line, pattern, ignoreCase)
           : bufferedLine.line
 
-        // Re-colorize the highlighted line
         const coloredLine = colorizeLogLine(highlightedLine)
 
         const prefix = isMatch && pattern ? chalk.red('> ') : '  '
         const podPart = bufferedLine.podPrefix ? `${bufferedLine.podPrefix} ` : ''
-        write(`${prefix}${podPart}${coloredLine}\n`)
+        const errorMark = errorDetectorRef.current?.(bufferedLine.line) ? chalk.red('▎') : ' '
+        write(`${errorMark}${prefix}${podPart}${coloredLine}\n`)
         lastIdx = index
       })
     }
-  }
+  }, [buffer, write])
+
+  useEffect(() => {
+    currentFilter.current = filter
+    isConnectedRef.current = isConnected
+    addErrorLogLineRef.current = addErrorLogLine
+    errorDetectorRef.current = errorDetector
+    refilterAndDisplay()
+  }, [filter, isConnected, addErrorLogLine, errorDetector, refilterAndDisplay])
+
+  const hasInitialized = useRef(false)
+  useEffect(() => {
+    if (!hasInitialized.current) {
+      write('\n\n\n')
+      hasInitialized.current = true
+    }
+    return () => {
+      write('\x1B[?7h')
+    }
+  }, [write])
+
+  useEffect(() => {
+    write(isWrap ? '\x1B[?7h' : '\x1B[?7l')
+    if (isConnected) {
+      refilterAndDisplay()
+    }
+  }, [isWrap, write, isConnected, refilterAndDisplay])
 
   // Track if help is showing
   const [isShowingHelp, setIsShowingHelp] = useState(false)
@@ -194,20 +199,17 @@ export default function LogViewer({
     errorModeRef.current = errorMode
   }, [errorMode])
 
-  // Sync state to ref for callback access
   useEffect(() => {
     isShowingHelpRef.current = isShowingHelp
     if (isShowingHelp) {
       write('\x1Bc')
     }
     else {
-      // Restore logs when closing help
       if (isConnected && !errorMode) {
         refilterAndDisplay()
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isShowingHelp, isConnected, errorMode, write]) // refilterAndDisplay is stable
+  }, [isShowingHelp, isConnected, errorMode, write, refilterAndDisplay])
 
   // Auto-clear copy message
   useEffect(() => {
@@ -406,11 +408,9 @@ export default function LogViewer({
     }
   }, { isActive: true })
 
-  // Connection state check for non-exit keys
   useEffect(() => {
     if (!isConnected && filterMode) {
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-      setFilterMode(false)
+      setFilterMode(false) // eslint-disable-line react-hooks-extra/no-direct-set-state-in-use-effect
     }
   }, [isConnected, filterMode])
 
@@ -444,6 +444,11 @@ export default function LogViewer({
                 setConnectionProgress('')
               }
 
+              // Guard against undefined/null log lines
+              if (!logLine.line || typeof logLine.line !== 'string') {
+                return
+              }
+
               const podPrefix = `[${logLine.pod}/${logLine.container}]`
               const coloredLine = colorizeLogLine(logLine.line)
 
@@ -458,7 +463,8 @@ export default function LogViewer({
               addLine(bufferedLine)
 
               // CRITICAL: Add to error collection (runs continuously regardless of mode)
-              addErrorLogLine(logLine.line, coloredLine, logLine.pod, logLine.container)
+              // Use ref to get latest addErrorLogLine to avoid stale closure in followLogs callback
+              addErrorLogLineRef.current(logLine.line, coloredLine, logLine.pod, logLine.container)
 
               // Use current filter state from ref
               const { pattern, ignoreCase, invert } = currentFilter.current
@@ -476,7 +482,8 @@ export default function LogViewer({
 
                 const finalColoredLine = colorizeLogLine(highlightedLine)
                 const prefix = isMatch && pattern ? chalk.red('> ') : ''
-                write(`${prefix}${podPrefix} ${finalColoredLine}\n`)
+                const errorMark = errorDetectorRef.current?.(logLine.line) ? chalk.red('▎') : ' '
+                write(`${errorMark}${prefix}${podPrefix} ${finalColoredLine}\n`)
               }
             }
           },
@@ -488,6 +495,7 @@ export default function LogViewer({
                 setRetryCount(prev => prev + 1)
                 const nextRetry = retryCount + 1
                 setStatus(`Connection lost. Retrying (${nextRetry}/${maxRetry})...`)
+                // Schedule retry with cleanup tracking
                 const retryTimer = setTimeout(() => {
                   if (!cancelled) {
                     startFollowing()
@@ -498,6 +506,7 @@ export default function LogViewer({
               else {
                 setStatus(`Failed after ${maxRetry} attempts: ${error.message}`)
                 write(chalk.red(`\n✗ Error: ${error.message}\n`))
+                // Schedule exit with cleanup tracking
                 const exitTimer = setTimeout(() => {
                   if (!cancelled) {
                     exit()
@@ -519,6 +528,7 @@ export default function LogViewer({
           setStatus(`Error: ${errorMsg}`)
           setConnectionProgress('')
           write(chalk.red(`\n✗ ${errorMsg}\n`))
+          // Schedule exit with cleanup tracking
           const exitTimer = setTimeout(() => {
             if (!cancelled) {
               exit(new Error(String(error)))
@@ -535,12 +545,7 @@ export default function LogViewer({
       cancelled = true
       timers.forEach(timer => clearTimeout(timer))
     }
-    // Note: Intentionally excluding some dependencies to avoid infinite loops
-    // - addErrorLogLine, addLine, write are stable functions from hooks/props
-    // - followLogs, exit are stable functions
-    // - isConnected is tracked via ref to avoid re-renders
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deployment, namespace, context, tail, retryCount, paused, maxRetry, timeout])
+  }, [deployment, namespace, context, tail, retryCount, paused, maxRetry, timeout, followLogs, addLine, write, exit])
 
   // Build status info
   const _contextInfo = context ? chalk.blue(`[${context}]`) : ''
@@ -692,12 +697,16 @@ export default function LogViewer({
             {' '}
             •
             {' '}
-            {errorCount}
+            <Text color={errorCount > 0 ? 'red' : 'dimColor'}>
+              {errorCount}
+            </Text>
             {' '}
             error
             {errorCount !== 1 ? 's' : ''}
             {' '}
-            collected •
+            collected
+            {' '}
+            •
             {' '}
             Logs continue in background
           </Text>

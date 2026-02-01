@@ -4,9 +4,10 @@
  */
 
 import type { ErrorEntry, LogLine } from '../types/error.js'
-import { useCallback, useRef, useState } from 'react'
+import type { ErrorDetector } from '../utils/errorDetector.js'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { stripAnsiCodes } from '../utils/clipboard.js'
-import { extractErrorSeverity, extractErrorType, extractTimestamp, isErrorLog, isStackTraceLine } from '../utils/errorDetector.js'
+import { defaultErrorDetector, extractErrorSeverity, extractErrorType, extractTimestamp, isStackTraceLine } from '../utils/errorDetector.js'
 
 const MAX_ERRORS = 100 // Keep last 100 errors
 const CONTEXT_LINES = 3 // Lines before/after error
@@ -19,11 +20,37 @@ export interface UseErrorCollectionReturn {
   clearErrors: () => void
 }
 
+export interface UseErrorCollectionOptions {
+  /**
+   * Custom error detector function
+   * If not provided, uses defaultErrorDetector
+   *
+   * @example
+   * // Use ASP.NET Core detector
+   * useErrorCollection(deployment, namespace, context, {
+   *   errorDetector: aspNetCoreErrorDetector
+   * })
+   *
+   * @example
+   * // Custom detector
+   * useErrorCollection(deployment, namespace, context, {
+   *   errorDetector: (line) => line.includes('[ERROR]')
+   * })
+   */
+  errorDetector?: ErrorDetector
+}
+
 export function useErrorCollection(
   deployment: string,
   namespace: string,
   context?: string,
+  options?: UseErrorCollectionOptions,
 ): UseErrorCollectionReturn {
+  // Use useMemo to ensure errorDetector updates when options changes
+  const errorDetector = useMemo(
+    () => options?.errorDetector ?? defaultErrorDetector,
+    [options?.errorDetector],
+  )
   const [errors, setErrors] = useState<ErrorEntry[]>([])
   const errorsRef = useRef<ErrorEntry[]>([])
 
@@ -40,6 +67,11 @@ export function useErrorCollection(
 
   const addLogLine = useCallback(
     (line: string, coloredLine: string, pod: string, container: string) => {
+      // Guard against undefined/null/empty lines
+      if (!line || typeof line !== 'string') {
+        return
+      }
+
       const timestamp = Date.now()
       const timeString = extractTimestamp(line)
 
@@ -74,8 +106,9 @@ export function useErrorCollection(
         currentStackTrace.current = []
       }
 
-      // Check if this is an error line
-      if (isErrorLog(line)) {
+      // Check if this is an error line using the custom detector
+      const isError = errorDetector(line)
+      if (isError) {
         const severity = extractErrorSeverity(line)
         const errorType = extractErrorType(line)
 
@@ -161,7 +194,7 @@ export function useErrorCollection(
         }
       }
     },
-    [deployment, namespace, context],
+    [deployment, namespace, context, errorDetector],
   )
 
   const getError = useCallback((index: number): ErrorEntry | undefined => {

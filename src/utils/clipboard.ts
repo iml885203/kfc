@@ -1,44 +1,20 @@
-/**
- * Clipboard utilities for copying logs
- */
-
 import clipboard from 'clipboardy'
 
-/**
- * Copy text to system clipboard
- * @param text Text to copy
- * @returns true if successful, false otherwise
- */
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await clipboard.write(text)
     return true
   }
   catch {
-    // Clipboard might not be available in some environments
     return false
   }
 }
 
-/**
- * Remove ANSI color codes from text
- * @param text Text with ANSI codes
- * @returns Clean text without ANSI codes
- */
 export function stripAnsiCodes(text: string): string {
-  // Remove all ANSI escape sequences
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x1B\[[0-9;]*m/g, '')
 }
 
-/**
- * Format error for clipboard (single line)
- * @param pod Pod name
- * @param container Container name
- * @param timestamp Time string
- * @param line Error line
- * @returns Formatted string
- */
 export function formatErrorLine(
   pod: string,
   container: string,
@@ -49,18 +25,6 @@ export function formatErrorLine(
   return `[${pod}/${container}] [${timestamp}] ${cleanLine}`
 }
 
-/**
- * Format error with context for clipboard
- * @param pod Pod name
- * @param container Container name
- * @param timestamp Time string
- * @param errorLine Main error line
- * @param contextBefore Lines before error
- * @param contextAfter Lines after error
- * @param deployment Deployment name
- * @param namespace Namespace
- * @returns Formatted multi-line string
- */
 export function formatErrorWithContext(
   pod: string,
   container: string,

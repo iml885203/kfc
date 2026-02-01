@@ -16,7 +16,9 @@ A beautiful CLI tool for following Kubernetes deployment logs with rich syntax h
 - 🔄 **Auto-Reconnect** - Automatically reconnects when connection is lost
 - 🎯 **Interactive Selection** - Beautiful deployment selector when no deployment specified
 - ⌨️ **Interactive Filtering** - Real-time log filtering with keyboard shortcuts
-- 📊 **Real-time Status** - Live connection status indicator
+- 🔴 **Error Collection Mode** - Automatically collect and view errors, copy to clipboard
+- 📋 **Quick Copy** - Copy error logs with context to clipboard instantly
+- 📊 **Real-time Status** - Live connection status indicator with error counter
 - 🌍 **Cross-platform** - Works on Windows, macOS, and Linux
 - 📦 **Zero Config** - Works out of the box with kubectl
 
@@ -83,6 +85,13 @@ Options:
   --invert, -v       Invert match (show non-matching lines)
   --help, -h         Show help
 ```
+
+### Keyboard Shortcuts
+
+Press `?` in interactive mode to see all shortcuts. Key features:
+- `e` - Error mode (auto-collect errors, copy with y/Y)
+- `/` - Filter logs
+- `p` - Pause/resume
 
 ---
 

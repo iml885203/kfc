@@ -1,198 +1,207 @@
-import * as k8s from '@kubernetes/client-node';
-import { Writable } from 'stream';
+import type { Buffer } from 'node:buffer'
+import { Writable } from 'node:stream'
+import * as k8s from '@kubernetes/client-node'
 
 // Helper function to add timeout to promises
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
-	return Promise.race([
-		promise,
-		new Promise<T>((_, reject) =>
-			setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms: ${operation}`)), timeoutMs)
-		),
-	]);
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms: ${operation}`)), timeoutMs),
+    ),
+  ])
 }
 
 export interface LogLine {
-	pod: string;
-	container: string;
-	line: string;
-	timestamp?: Date;
+  pod: string
+  container: string
+  line: string
+  timestamp?: Date
 }
 
 export function getContexts(): string[] {
-	const kc = new k8s.KubeConfig();
-	kc.loadFromDefault();
-	return kc.contexts.map(ctx => ctx.name);
+  const kc = new k8s.KubeConfig()
+  kc.loadFromDefault()
+  return kc.contexts.map(ctx => ctx.name)
 }
 
 export function getCurrentContext(): string {
-	const kc = new k8s.KubeConfig();
-	kc.loadFromDefault();
-	return kc.currentContext;
+  const kc = new k8s.KubeConfig()
+  kc.loadFromDefault()
+  return kc.currentContext
 }
 
 export async function getNamespaces(context?: string, timeoutMs: number = 5000): Promise<string[]> {
-	const kc = new k8s.KubeConfig();
-	kc.loadFromDefault();
+  const kc = new k8s.KubeConfig()
+  kc.loadFromDefault()
 
-	if (context) {
-		kc.setCurrentContext(context);
-	}
+  if (context) {
+    kc.setCurrentContext(context)
+  }
 
-	const coreApi = kc.makeApiClient(k8s.CoreV1Api);
+  const coreApi = kc.makeApiClient(k8s.CoreV1Api)
 
-	try {
-		const response = await withTimeout(
-			coreApi.listNamespace(),
-			timeoutMs,
-			`listing namespaces${context ? ` (context: ${context})` : ''}`
-		);
-		return response.items.map((item: k8s.V1Namespace) => item.metadata?.name || '').filter(Boolean);
-	} catch (error) {
-		throw new Error(`Failed to list namespaces: ${error instanceof Error ? error.message : String(error)}`);
-	}
+  try {
+    const response = await withTimeout(
+      coreApi.listNamespace(),
+      timeoutMs,
+      `listing namespaces${context ? ` (context: ${context})` : ''}`,
+    )
+    return response.items.map((item: k8s.V1Namespace) => item.metadata?.name || '').filter(Boolean)
+  }
+  catch (error) {
+    throw new Error(`Failed to list namespaces: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 export async function getDeployments(
-	namespace: string,
-	context?: string,
-	timeoutMs: number = 15000
+  namespace: string,
+  context?: string,
+  timeoutMs: number = 15000,
 ): Promise<string[]> {
-	const kc = new k8s.KubeConfig();
-	kc.loadFromDefault();
+  const kc = new k8s.KubeConfig()
+  kc.loadFromDefault()
 
-	if (context) {
-		kc.setCurrentContext(context);
-	}
+  if (context) {
+    kc.setCurrentContext(context)
+  }
 
-	const appsApi = kc.makeApiClient(k8s.AppsV1Api);
+  const appsApi = kc.makeApiClient(k8s.AppsV1Api)
 
-	try {
-		const response = await withTimeout(
-			appsApi.listNamespacedDeployment({ namespace }),
-			timeoutMs,
-			`listing deployments in namespace "${namespace}"${context ? ` (context: ${context})` : ''}`
-		);
-		return response.items.map((item: k8s.V1Deployment) => item.metadata?.name || '').filter(Boolean);
-	} catch (error) {
-		if (error instanceof Error && error.message.includes('timed out')) {
-			throw new Error(`Connection timeout: Unable to connect to cluster${context ? ` "${context}"` : ''}. Please check your network connection and cluster availability.`);
-		}
-		throw new Error(`Failed to list deployments: ${error instanceof Error ? error.message : String(error)}`);
-	}
+  try {
+    const response = await withTimeout(
+      appsApi.listNamespacedDeployment({ namespace }),
+      timeoutMs,
+      `listing deployments in namespace "${namespace}"${context ? ` (context: ${context})` : ''}`,
+    )
+    return response.items.map((item: k8s.V1Deployment) => item.metadata?.name || '').filter(Boolean)
+  }
+  catch (error) {
+    if (error instanceof Error && error.message.includes('timed out')) {
+      throw new Error(`Connection timeout: Unable to connect to cluster${context ? ` "${context}"` : ''}. Please check your network connection and cluster availability.`)
+    }
+    throw new Error(`Failed to list deployments: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 export async function followLogs(
-	deployment: string,
-	namespace: string,
-	context: string | undefined,
-	tailLines: number,
-	onLog: (log: LogLine) => void,
-	onError: (error: Error) => void,
-	onProgress?: (message: string) => void,
-	timeoutMs: number = 10000
+  deployment: string,
+  namespace: string,
+  context: string | undefined,
+  tailLines: number,
+  onLog: (log: LogLine) => void,
+  onError: (error: Error) => void,
+  onProgress?: (message: string) => void,
+  timeoutMs: number = 10000,
 ): Promise<void> {
-	const kc = new k8s.KubeConfig();
-	kc.loadFromDefault();
+  const kc = new k8s.KubeConfig()
+  kc.loadFromDefault()
 
-	if (context) {
-		kc.setCurrentContext(context);
-	}
+  if (context) {
+    kc.setCurrentContext(context)
+  }
 
-	const coreApi = kc.makeApiClient(k8s.CoreV1Api);
-	const appsApi = kc.makeApiClient(k8s.AppsV1Api);
+  const coreApi = kc.makeApiClient(k8s.CoreV1Api)
+  const appsApi = kc.makeApiClient(k8s.AppsV1Api)
 
-	try {
-		// Get deployment
-		onProgress?.('Fetching deployment info...');
-		let deploymentResponse;
-		try {
-			deploymentResponse = await withTimeout(
-				appsApi.readNamespacedDeployment({ name: deployment, namespace }),
-				timeoutMs,
-				`reading deployment "${deployment}"`
-			);
-		} catch (error: any) {
-			if (error instanceof Error && error.message.includes('timed out')) {
-				throw new Error(`Connection timeout: Unable to connect to cluster${context ? ` "${context}"` : ''}. Please check your network connection and cluster availability.`);
-			}
-			if (error.response?.statusCode === 404) {
-				throw new Error(`Deployment "${deployment}" not found in namespace "${namespace}". Use 'kubectl get deployments -n ${namespace}' to list available deployments.`);
-			}
-			throw error;
-		}
-		
-		const selector = deploymentResponse.spec?.selector?.matchLabels;
+  try {
+    // Get deployment
+    onProgress?.('Fetching deployment info...')
+    let deploymentResponse
+    try {
+      deploymentResponse = await withTimeout(
+        appsApi.readNamespacedDeployment({ name: deployment, namespace }),
+        timeoutMs,
+        `reading deployment "${deployment}"`,
+      )
+    }
+    catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('timed out')) {
+        throw new Error(`Connection timeout: Unable to connect to cluster${context ? ` "${context}"` : ''}. Please check your network connection and cluster availability.`)
+      }
+      if (error && typeof error === 'object' && 'response' in error) {
+        const errorWithResponse = error as { response?: { statusCode?: number } }
+        if (errorWithResponse.response?.statusCode === 404) {
+          throw new Error(`Deployment "${deployment}" not found in namespace "${namespace}". Use 'kubectl get deployments -n ${namespace}' to list available deployments.`)
+        }
+      }
+      throw error
+    }
 
-		if (!selector) {
-			throw new Error('Deployment has no selector labels');
-		}
+    const selector = deploymentResponse.spec?.selector?.matchLabels
 
-		// Convert selector to label selector string
-		const labelSelector = Object.entries(selector)
-			.map(([key, value]) => `${key}=${value}`)
-			.join(',');
+    if (!selector) {
+      throw new Error('Deployment has no selector labels')
+    }
 
-		// Get pods
-		onProgress?.('Finding pods...');
-		const podsResponse = await withTimeout(
-			coreApi.listNamespacedPod({
-				namespace,
-				labelSelector,
-			}),
-			timeoutMs,
-			`listing pods for deployment "${deployment}"`
-		);
+    // Convert selector to label selector string
+    const labelSelector = Object.entries(selector)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(',')
 
-		if (podsResponse.items.length === 0) {
-			throw new Error(`No pods found for deployment "${deployment}". The deployment may have 0 replicas.`);
-		}
+    // Get pods
+    onProgress?.('Finding pods...')
+    const podsResponse = await withTimeout(
+      coreApi.listNamespacedPod({
+        namespace,
+        labelSelector,
+      }),
+      timeoutMs,
+      `listing pods for deployment "${deployment}"`,
+    )
 
-		// Follow logs from the first running pod
-		const pod = podsResponse.items.find((p: k8s.V1Pod) => p.status?.phase === 'Running');
-		
-		if (!pod || !pod.metadata?.name) {
-			throw new Error('No running pods found');
-		}
+    if (podsResponse.items.length === 0) {
+      throw new Error(`No pods found for deployment "${deployment}". The deployment may have 0 replicas.`)
+    }
 
-		const podName = pod.metadata.name;
-		const containerName = pod.spec?.containers[0]?.name || '';
+    // Follow logs from the first running pod
+    const pod = podsResponse.items.find((p: k8s.V1Pod) => p.status?.phase === 'Running')
 
-		// Create log stream
-		onProgress?.(`Connecting to pod ${podName}...`);
-		const logStream = new k8s.Log(kc);
-		
-		const stream = new Writable({
-			write(chunk: Buffer, encoding: string, callback: () => void) {
-				const lines = chunk.toString().split('\n').filter(Boolean);
-				lines.forEach((line: string) => {
-					onLog({
-						pod: podName,
-						container: containerName,
-						line,
-						timestamp: new Date(),
-					});
-				});
-				callback();
-			},
-		});
+    if (!pod || !pod.metadata?.name) {
+      throw new Error('No running pods found')
+    }
 
-		try {
-			await logStream.log(
-				namespace,
-				podName,
-				containerName,
-				stream,
-				{
-					follow: true,
-					tailLines,
-					pretty: false,
-					timestamps: false,
-				}
-			);
-		} catch (error) {
-			onError(error instanceof Error ? error : new Error(String(error)));
-		}
-	} catch (error) {
-		onError(error instanceof Error ? error : new Error(String(error)));
-	}
+    const podName = pod.metadata.name
+    const containerName = pod.spec?.containers[0]?.name || ''
+
+    // Create log stream
+    onProgress?.(`Connecting to pod ${podName}...`)
+    const logStream = new k8s.Log(kc)
+
+    const stream = new Writable({
+      write(chunk: Buffer, encoding: string, callback: () => void) {
+        const lines = chunk.toString().split('\n').filter(Boolean)
+        lines.forEach((line: string) => {
+          onLog({
+            pod: podName,
+            container: containerName,
+            line,
+            timestamp: new Date(),
+          })
+        })
+        callback()
+      },
+    })
+
+    try {
+      await logStream.log(
+        namespace,
+        podName,
+        containerName,
+        stream,
+        {
+          follow: true,
+          tailLines,
+          pretty: false,
+          timestamps: false,
+        },
+      )
+    }
+    catch (error) {
+      onError(error instanceof Error ? error : new Error(String(error)))
+    }
+  }
+  catch (error) {
+    onError(error instanceof Error ? error : new Error(String(error)))
+  }
 }

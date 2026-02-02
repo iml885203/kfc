@@ -23,6 +23,15 @@ describe('useK8sContext', () => {
     expect(result.current.selectedNamespace).toBe('stored-ns')
   })
 
+  it('should prefer stored config when no namespace is provided (fix for the issue)', () => {
+    (getDefaultNamespace as any).mockReturnValue('stored-ns')
+
+    // After fix in cli.tsx, no flag provided results in undefined initialNamespace
+    const { result } = renderHook(() => useK8sContext({ initialNamespace: undefined }))
+
+    expect(result.current.selectedNamespace).toBe('stored-ns')
+  })
+
   it('should persist selected namespace to config', () => {
     const { result } = renderHook(() => useK8sContext({}))
 
@@ -59,6 +68,22 @@ describe('useK8sContext', () => {
     expect(result.current.layer).toBe('logs')
   })
 
+  it('should reset to config default namespace (not hardcoded "default") when context changes', () => {
+    (getDefaultNamespace as any).mockReturnValue('stored-ns')
+
+    const { result } = renderHook(() => useK8sContext({}))
+
+    // Initial should be stored-ns
+    expect(result.current.selectedNamespace).toBe('stored-ns')
+
+    act(() => {
+      result.current.setContext('new-ctx')
+    })
+
+    // Should still be stored-ns, NOT 'default'
+    expect(result.current.selectedNamespace).toBe('stored-ns')
+  })
+
   it('should initialize into deployment layer if only context provided', () => {
     const props = { initialContext: 'test-ctx' }
     const { result } = renderHook(() => useK8sContext(props))
@@ -79,7 +104,7 @@ describe('useK8sContext', () => {
     })
 
     expect(result.current.selectedContext).toBe('new-ctx')
-    expect(result.current.selectedNamespace).toBe('default') // Should reset to default
+    expect(result.current.selectedNamespace).toBe('old-ns') // Should reset to its initial default
     expect(result.current.selectedDeployment).toBe('')
     expect(result.current.layer).toBe('deployment')
   })

@@ -44,12 +44,14 @@ export function useLogStream({
   const isConnectedRef = useRef(isConnected)
   const addErrorLogLineRef = useRef(addErrorLogLine)
   const addLineRef = useRef(addLine)
+  const retryCountRef = useRef(retryCount)
 
   useEffect(() => {
     isConnectedRef.current = isConnected
     addErrorLogLineRef.current = addErrorLogLine
     addLineRef.current = addLine
-  }, [isConnected, addErrorLogLine, addLine])
+    retryCountRef.current = retryCount
+  }, [isConnected, addErrorLogLine, addLine, retryCount])
 
   useEffect(() => {
     let cancelled = false
@@ -101,9 +103,9 @@ export function useLogStream({
             if (!cancelled) {
               setIsConnected(false)
               setConnectionProgress('')
-              if (retryCount < maxRetry) {
-                setRetryCount(prev => prev + 1)
-                const nextRetry = retryCount + 1
+              if (retryCountRef.current < maxRetry) {
+                const nextRetry = retryCountRef.current + 1
+                setRetryCount(nextRetry)
                 setStatus(`Connection lost. Retrying (${nextRetry}/${maxRetry})...`)
                 // Schedule retry
                 retryTimer = setTimeout(() => {
@@ -142,7 +144,7 @@ export function useLogStream({
         clearTimeout(retryTimer)
       }
     }
-  }, [deployment, namespace, context, tail, retryCount, paused, maxRetry, timeout, followLogs])
+  }, [deployment, namespace, context, tail, paused, maxRetry, timeout, followLogs])
 
   return {
     status,

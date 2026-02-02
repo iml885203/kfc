@@ -44,7 +44,6 @@ const cli = meow(
       namespace: {
         type: 'string',
         shortFlag: 'n',
-        default: process.env.KFCTL_NAMESPACE || 'default',
       },
       context: {
         type: 'string',
@@ -112,7 +111,7 @@ const errorDetector = await loadErrorDetector()
 const app = render(
   <App
     deploymentName={cli.input[0]}
-    namespace={cli.flags.namespace}
+    namespace={cli.flags.namespace || process.env.KFCTL_NAMESPACE}
     context={cli.flags.context}
     tail={cli.flags.tail}
     maxRetry={cli.flags.maxRetry}

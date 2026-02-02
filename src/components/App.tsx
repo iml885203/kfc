@@ -9,7 +9,7 @@ import LogViewer from './LogViewer.js'
 
 interface AppProps {
   deploymentName?: string
-  namespace: string
+  namespace?: string
   context?: string
   tail: number
   maxRetry: number

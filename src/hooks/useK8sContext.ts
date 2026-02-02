@@ -37,14 +37,11 @@ export function useK8sContext({
 
   const setContext = useCallback((ctx: string) => {
     setSelectedContext(ctx)
-    // Reset downstream
-    // When context triggers reset, we might default to config default IF valid?
-    // Or hard reset to 'default'? The test expects 'default'.
-    // Let's stick to 'default' for reset to avoid confusion unless we track per-context defaults (future feature).
-    setSelectedNamespace('default')
+    // Use the same logic as initialization: priority to initial prop, then config, then hardcoded 'default'
+    setSelectedNamespace(initialNamespace || getDefaultNamespace() || 'default')
     setSelectedDeployment('')
     setLayer('deployment')
-  }, [])
+  }, [initialNamespace])
 
   const setNamespace = useCallback((ns: string) => {
     setSelectedNamespace(ns)

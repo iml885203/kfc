@@ -66,28 +66,29 @@ describe('useLogStream', () => {
   })
 
   it('should retry on connection failure', async () => {
-    // Mock followLogs to call onError immediately
-    mockFollowLogs.mockImplementation((_dep, _ns, _ctx, _tail, _onLog, onError) => {
-      onError(new Error('Connection failed'))
-      return Promise.resolve()
-    })
     vi.useFakeTimers()
+    let errorCallback: any
+    mockFollowLogs.mockImplementation((_d, _n, _c, _t, _ol, onError) => {
+      errorCallback = onError
+      return new Promise(() => {}) // Stay pending
+    })
 
     const { result } = renderHook(() => useLogStream(defaultProps))
 
-    // Initial failure
-    await waitFor(() => {
-      expect(result.current.status).toContain('Connection lost')
+    // 1. Manually trigger error
+    act(() => {
+      errorCallback(new Error('fail'))
     })
 
-    // Advance timers to trigger retry
+    expect(result.current.status).toContain('Connection lost')
+
+    // 2. Advance timers
     act(() => {
       vi.advanceTimersByTime(2000)
     })
 
-    await waitFor(() => {
-      expect(mockFollowLogs).toHaveBeenCalledTimes(2)
-    }, { timeout: 3000 })
+    // 3. Verify retry call happened
+    expect(mockFollowLogs).toHaveBeenCalledTimes(2)
   })
 
   it('should not process logs when paused', async () => {

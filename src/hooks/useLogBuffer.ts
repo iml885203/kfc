@@ -2,7 +2,7 @@
  * Hook for managing log buffer
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 export interface BufferedLine {
   podPrefix: string
@@ -16,10 +16,12 @@ export interface UseLogBufferReturn {
   addLine: (line: BufferedLine) => void
   clear: () => void
   getSize: () => number
+  bufferVersion: number
 }
 
 export function useLogBuffer(maxSize: number = 10000): UseLogBufferReturn {
   const buffer = useRef<BufferedLine[]>([])
+  const [bufferVersion, setBufferVersion] = useState(0)
 
   const addLine = useCallback(
     (line: BufferedLine) => {
@@ -29,12 +31,17 @@ export function useLogBuffer(maxSize: number = 10000): UseLogBufferReturn {
       if (buffer.current.length > maxSize) {
         buffer.current = buffer.current.slice(-maxSize)
       }
+
+      // Trigger re-render by updating version
+      setBufferVersion(v => v + 1)
     },
     [maxSize],
   )
 
   const clear = useCallback(() => {
     buffer.current = []
+    // Trigger re-render by updating version
+    setBufferVersion(v => v + 1)
   }, [])
 
   const getSize = useCallback(() => {
@@ -46,5 +53,6 @@ export function useLogBuffer(maxSize: number = 10000): UseLogBufferReturn {
     addLine,
     clear,
     getSize,
+    bufferVersion,
   }
 }

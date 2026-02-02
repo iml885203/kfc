@@ -18,6 +18,7 @@ interface UseLogRendererProps {
     isWrap: boolean
     isShowingHelp: boolean
   }
+  bufferVersion: number
 }
 
 export function useLogRenderer({
@@ -28,6 +29,7 @@ export function useLogRenderer({
   isConnected,
   errorMode,
   displayState,
+  bufferVersion,
 }: UseLogRendererProps) {
   const currentFilter = useRef(filter)
   const errorDetectorRef = useRef(errorDetector)
@@ -109,6 +111,7 @@ export function useLogRenderer({
     errorMode,
     refilterAndDisplay,
     write,
+    bufferVersion,
   ])
 
   // Effect: Filter change triggers refilter

@@ -75,7 +75,7 @@ export default function LogViewer({
   }, [])
 
   // 1. Hooks Initialization
-  const { buffer: bufferRef, addLine, clear } = useLogBuffer(10000)
+  const { buffer: bufferRef, addLine, clear, bufferVersion } = useLogBuffer(10000)
   const displayState = useLogDisplayState()
 
   const filter = useLogFilter(
@@ -140,6 +140,7 @@ export default function LogViewer({
     isConnected,
     errorMode,
     displayState,
+    bufferVersion,
   })
 
   // 4. View Rendering

@@ -8,6 +8,7 @@ export interface BufferedLine {
   line: string
   coloredLine: string
   timestamp: number
+  id: number
 }
 
 export interface FilteredLine {

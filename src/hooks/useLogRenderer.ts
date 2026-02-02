@@ -21,6 +21,14 @@ interface UseLogRendererProps {
   bufferVersion: number
 }
 
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T | undefined>(undefined)
+  useEffect(() => {
+    ref.current = value
+  })
+  return ref.current
+}
+
 export function useLogRenderer({
   write,
   bufferRef,
@@ -33,14 +41,25 @@ export function useLogRenderer({
 }: UseLogRendererProps) {
   const currentFilter = useRef(filter)
   const errorDetectorRef = useRef(errorDetector)
+  const lastRenderedId = useRef<number>(-1)
+  const lastMatchId = useRef<number>(-1)
 
+  // Track previous states to detect changes
+  const prevFilter = usePrevious(filter)
+  const prevIsConnected = usePrevious(isConnected)
+  const prevErrorMode = usePrevious(errorMode)
+  const prevIsShowingHelp = usePrevious(displayState.isShowingHelp)
+
+  // Update refs
   useEffect(() => {
     currentFilter.current = filter
     errorDetectorRef.current = errorDetector
   }, [filter, errorDetector])
 
-  const refilterAndDisplay = useCallback(() => {
+  const fullRender = useCallback(() => {
     write('\x1Bc') // Clear screen
+    lastRenderedId.current = -1
+    lastMatchId.current = -1
 
     const { pattern, ignoreCase, invert, context: filterCtx, before, after } = currentFilter.current
     const filtered = filterLines(
@@ -72,11 +91,82 @@ export function useLogRenderer({
         const prefix = isMatch && pattern ? chalk.red('> ') : '  '
         const podPart = bufferedLine.podPrefix ? `${bufferedLine.podPrefix} ` : ''
         const errorMark = errorDetectorRef.current?.(bufferedLine.line) ? chalk.red('▎') : ' '
+
         write(`${errorMark}${prefix}${podPart}${coloredLine}\n`)
+
         lastIdx = index
+        lastRenderedId.current = bufferedLine.id
+        if (isMatch)
+          lastMatchId.current = bufferedLine.id
       })
+
+      // If we filtered and found nothing or something, ensuring we track the latest buffer ID
+      // is complex because we only rendered matches.
+      // But for incremental logic to work, we must assume we "processed" everything in the buffer.
+      // So we set lastRenderedId to the content's max ID.
+      const buffer = bufferRef.current
+      if (buffer.length > 0) {
+        lastRenderedId.current = buffer[buffer.length - 1].id
+      }
     }
   }, [bufferRef, write])
+
+  const incrementalRender = useCallback(() => {
+    const { pattern, ignoreCase, invert, context: filterCtx, before, after } = currentFilter.current
+
+    // If context is used, fallback to full render (simplification for correctness)
+    if (filterCtx > 0 || before > 0 || after > 0) {
+      fullRender()
+      return
+    }
+
+    // Process new lines
+    const buffer = bufferRef.current
+    const newLines = buffer.filter(l => l.id > lastRenderedId.current)
+
+    if (newLines.length === 0)
+      return
+
+    let regex: RegExp | null = null
+    try {
+      if (pattern)
+        regex = new RegExp(pattern, ignoreCase ? 'i' : '')
+    }
+    catch {}
+
+    newLines.forEach((line) => {
+      let isMatch = true
+      if (regex) {
+        const matches = regex.test(line.line)
+        isMatch = invert ? !matches : matches
+      }
+      else if (pattern) { // Invalid regex case
+        // Fallback: match everything or nothing? usually match everything to be safe
+        isMatch = true
+      }
+
+      if (isMatch) {
+        // Check separator
+        if (pattern && lastMatchId.current !== -1 && line.id - lastMatchId.current > 1) {
+          write(chalk.gray('--\n'))
+        }
+
+        const highlightedLine = (pattern && regex && !invert) // Highlighting only makes sense if not inverted
+          ? highlightMatches(line.line, pattern, ignoreCase)
+          : line.line
+
+        const coloredLine = colorizeLogLine(highlightedLine)
+        const prefix = isMatch && pattern ? chalk.red('> ') : '  '
+        const podPart = line.podPrefix ? `${line.podPrefix} ` : ''
+        const errorMark = errorDetectorRef.current?.(line.line) ? chalk.red('▎') : ' '
+
+        write(`${errorMark}${prefix}${podPart}${coloredLine}\n`)
+        lastMatchId.current = line.id
+      }
+
+      lastRenderedId.current = line.id
+    })
+  }, [bufferRef, write, fullRender])
 
   // Initial Clear/Init
   const hasInitialized = useRef(false)
@@ -94,32 +184,48 @@ export function useLogRenderer({
   useEffect(() => {
     write(displayState.isWrap ? '\x1B[?7h' : '\x1B[?7l')
 
-    if (displayState.isShowingHelp) {
+    if (displayState.isShowingHelp || errorMode) {
       // Logic for help clearing handled by parent render usually,
-      // but if we want to clear screen for help mode here if imperative:
-      // write('\x1Bc')
-      // But React component handles help rendering.
-      // We just need to ensure logs are NOT rendered.
+      // but React component handles help rendering.
+      return
     }
-    else if (isConnected && !errorMode) {
-      refilterAndDisplay()
+
+    if (!isConnected) {
+      return
+    }
+
+    // Determine if we need full render
+    // We deep compare filter by stringifying because it's a small object
+    const filterChanged = JSON.stringify(prevFilter) !== JSON.stringify(filter)
+    const justConnected = !prevIsConnected && isConnected
+    const modeChanged = prevErrorMode !== errorMode || prevIsShowingHelp !== displayState.isShowingHelp
+
+    // If context is used, we always full render on updates (handled inside incrementalRender usually,
+    // but here we check trigger conditions)
+    // Actually, if we use Context, incrementalRender redirects to fullRender, so we are safe calling incrementalRender
+    // UNLESS the filter *changed*.
+
+    if (filterChanged || justConnected || modeChanged || lastRenderedId.current === -1) {
+      fullRender()
+    }
+    else {
+      incrementalRender()
     }
   }, [
     displayState.isWrap,
     displayState.isShowingHelp,
     isConnected,
     errorMode,
-    refilterAndDisplay,
+    fullRender,
+    incrementalRender,
     write,
     bufferVersion,
+    filter,
+    prevFilter,
+    prevIsConnected,
+    prevErrorMode,
+    prevIsShowingHelp,
   ])
 
-  // Effect: Filter change triggers refilter
-  useEffect(() => {
-    if (isConnected && !errorMode && !displayState.isShowingHelp) {
-      refilterAndDisplay()
-    }
-  }, [filter, isConnected, errorMode, displayState.isShowingHelp, refilterAndDisplay])
-
-  return { refilterAndDisplay }
+  return { refilterAndDisplay: fullRender }
 }

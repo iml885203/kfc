@@ -9,11 +9,12 @@ export interface BufferedLine {
   line: string
   coloredLine: string
   timestamp: number
+  id: number
 }
 
 export interface UseLogBufferReturn {
   buffer: React.MutableRefObject<BufferedLine[]>
-  addLine: (line: BufferedLine) => void
+  addLine: (line: Omit<BufferedLine, 'id'>) => void
   clear: () => void
   getSize: () => number
   bufferVersion: number
@@ -22,10 +23,15 @@ export interface UseLogBufferReturn {
 export function useLogBuffer(maxSize: number = 10000): UseLogBufferReturn {
   const buffer = useRef<BufferedLine[]>([])
   const [bufferVersion, setBufferVersion] = useState(0)
+  const nextId = useRef(0)
 
   const addLine = useCallback(
-    (line: BufferedLine) => {
-      buffer.current.push(line)
+    (line: Omit<BufferedLine, 'id'>) => {
+      const lineWithId: BufferedLine = {
+        ...line,
+        id: nextId.current++,
+      }
+      buffer.current.push(lineWithId)
 
       // Trim buffer if too large
       if (buffer.current.length > maxSize) {

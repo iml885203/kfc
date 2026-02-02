@@ -45,13 +45,15 @@ export function useLogStream({
   const addErrorLogLineRef = useRef(addErrorLogLine)
   const addLineRef = useRef(addLine)
   const retryCountRef = useRef(retryCount)
+  const pausedRef = useRef(paused)
 
   useEffect(() => {
     isConnectedRef.current = isConnected
     addErrorLogLineRef.current = addErrorLogLine
     addLineRef.current = addLine
     retryCountRef.current = retryCount
-  }, [isConnected, addErrorLogLine, addLine, retryCount])
+    pausedRef.current = paused
+  }, [isConnected, addErrorLogLine, addLine, retryCount, paused])
 
   useEffect(() => {
     let cancelled = false
@@ -69,7 +71,7 @@ export function useLogStream({
           context,
           tail,
           (logLine) => {
-            if (!cancelled && !paused) {
+            if (!cancelled && !pausedRef.current) {
               // Mark as connected on first log
               if (!isConnectedRef.current) {
                 setIsConnected(true)
@@ -144,7 +146,7 @@ export function useLogStream({
         clearTimeout(retryTimer)
       }
     }
-  }, [deployment, namespace, context, tail, paused, maxRetry, timeout, followLogs])
+  }, [deployment, namespace, context, tail, maxRetry, timeout, followLogs])
 
   return {
     status,

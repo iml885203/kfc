@@ -205,7 +205,7 @@ export function useLogRenderer({
     // Actually, if we use Context, incrementalRender redirects to fullRender, so we are safe calling incrementalRender
     // UNLESS the filter *changed*.
 
-    if (filterChanged || justConnected || modeChanged || lastRenderedId.current === -1) {
+    if (filterChanged || justConnected || modeChanged || lastRenderedId.current === -1 || bufferRef.current.length === 0) {
       fullRender()
     }
     else {

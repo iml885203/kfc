@@ -94,7 +94,7 @@ export default function LogViewer({
   // const [errorScrollOffset, setErrorScrollOffset] = useState(0)
   // const [copyMessage, setCopyMessage] = useState<string | null>(null)
 
-  const { errors, errorCount, addLogLine: addErrorLogLine, getError } = useErrorCollection(
+  const { errors, errorCount, addLogLine: addErrorLogLine, getError, clearErrors } = useErrorCollection(
     deployment,
     namespace,
     context,
@@ -124,7 +124,7 @@ export default function LogViewer({
     displayState,
     filter,
     buffer: { addLine, clear },
-    errorCollection: { errors, getError },
+    errorCollection: { errors, getError, clearErrors },
     isConnected,
     errorMode,
     setErrorMode,

@@ -44,6 +44,7 @@ describe('useLogInputHandler', () => {
     errors: [],
     errorCount: 0,
     getError: vi.fn(),
+    clearErrors: vi.fn(),
   }
 
   const defaultProps = {
@@ -96,6 +97,7 @@ describe('useLogInputHandler', () => {
       handler('x', {})
     })
     expect(mockBuffer.clear).toHaveBeenCalled()
+    expect(mockErrorCollection.clearErrors).toHaveBeenCalled()
   })
 
   // Test cases for filter mode

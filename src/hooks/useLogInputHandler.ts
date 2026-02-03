@@ -31,6 +31,7 @@ interface ErrorEntry {
 interface ErrorCollection {
   errors: ErrorEntry[]
   getError: (index: number) => ErrorEntry | undefined
+  clearErrors: () => void
 }
 
 export interface UseLogInputHandlerProps {
@@ -55,6 +56,7 @@ export function useLogInputHandler({
   displayState,
   filter,
   buffer,
+  errorCollection,
   isConnected,
   errorMode,
   setErrorMode,
@@ -141,6 +143,7 @@ export function useLogInputHandler({
     }
     else if (input === 'x' || (key.ctrl && input === 'l')) {
       buffer.clear()
+      errorCollection.clearErrors()
     }
     else if (input === 'm') {
       const separator = chalk.dim('----------------------------------------------------------------')

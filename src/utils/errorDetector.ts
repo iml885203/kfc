@@ -1,6 +1,9 @@
 import type { ErrorSeverity } from '../types/error.js'
 
-export type ErrorDetector = (line: string) => boolean
+export interface ErrorDetector {
+  (line: string): boolean
+  isStackTrace?: (line: string) => boolean
+}
 
 export function defaultErrorDetector(line: string): boolean {
   if (!line || typeof line !== 'string') {
@@ -35,10 +38,6 @@ export function defaultErrorDetector(line: string): boolean {
   }
 
   if (/\bFAILED\b/.test(upperLine) && !/\b(?:SUCCESS|SUCCEEDED|OK|COMPLETED)\b/.test(upperLine)) {
-    return true
-  }
-
-  if (isStackTraceLine(line)) {
     return true
   }
 
@@ -98,7 +97,7 @@ export function isStackTraceLine(line: string): boolean {
   const trimmed = line.trim()
 
   return (
-    /^\s*at\s+[\w.]+\(/.test(trimmed)
+    /^\s*at\s+[\w.<>[\]|`]+\s*\(/.test(trimmed)
     || /^File "[^"]+", line \d+/.test(trimmed)
     || /^\s*at\s[^(]+\([^:]+:\d+:\d+\)/.test(trimmed)
     || (/^\s{4,}/.test(line) && /\([^)]+\)/.test(line))
@@ -153,10 +152,6 @@ export function aspNetCoreErrorDetector(line: string): boolean {
     if (/"(?:errorCode|errorMessage|errorDetails|errorStack)"\s*:/i.test(line)) {
       return false
     }
-    return true
-  }
-
-  if (isStackTraceLine(line)) {
     return true
   }
 

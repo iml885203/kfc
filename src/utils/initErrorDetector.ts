@@ -17,51 +17,6 @@ const ERROR_DETECTOR_JSON_TEMPLATE = JSON.stringify(
   2,
 )
 
-const _ERROR_DETECTOR_JS_TEMPLATE = `function aspNetCoreDetector(line) {
-  if (/\\[\\d{2}:\\d{2}:\\d{2}\\.\\d+\\s+(ERR|FATAL|CRITICAL)\\]/.test(line)) {
-    return true
-  }
-
-  if (/(?:StatusCode|ResponseBody|Protocol|Method|Scheme|Path|QueryString|Duration|Request and Response)\\s*:/i.test(line)) {
-    const errorCodeMatch = line.match(/"errorCode"\\s*:\\s*(\\d+)/i)
-    if (errorCodeMatch) {
-      const code = parseInt(errorCodeMatch[1], 10)
-      return code >= 500 && code < 600
-    }
-    return false
-  }
-
-  if (/\\[(ERROR|FATAL|CRITICAL|ERR)\\]/i.test(line)) {
-    return true
-  }
-
-  if (/\\b(EXCEPTION|UNHANDLED\\s+EXCEPTION)\\b/i.test(line)) {
-    if (/"(errorCode|errorMessage|errorDetails|errorStack)"\\s*:/i.test(line)) {
-      return false
-    }
-    return true
-  }
-
-  const trimmed = line.trim()
-  if (/^\\s*at\\s+[\\w.]+(/.test(trimmed)) {
-    return true
-  }
-  if (/^File "[^"]+", line \\d+/.test(trimmed)) {
-    return true
-  }
-  if (/^\\s*at\\s[^(]+\\([^:]+:\\d+:\\d+\\)/.test(trimmed)) {
-    return true
-  }
-  if (/^\\s{4,}/.test(line) && /\\([^)]+\\)/.test(line)) {
-    return true
-  }
-
-  return false
-}
-
-export const errorDetector = aspNetCoreDetector
-`
-
 export function initErrorDetector(): { success: boolean, message: string, path: string } {
   const detectorPath = getErrorDetectorPath()
 

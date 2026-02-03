@@ -7,7 +7,7 @@ import type { ErrorEntry, LogLine } from '../types/error.js'
 import type { ErrorDetector } from '../utils/errorDetector.js'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { stripAnsiCodes } from '../utils/clipboard.js'
-import { defaultErrorDetector, extractErrorSeverity, extractErrorType, extractTimestamp, isStackTraceLine } from '../utils/errorDetector.js'
+import { defaultErrorDetector, isStackTraceLine as defaultIsStackTraceLine, extractErrorSeverity, extractErrorType, extractTimestamp } from '../utils/errorDetector.js'
 
 const MAX_ERRORS = 100 // Keep last 100 errors
 const CONTEXT_LINES = 3 // Lines before/after error
@@ -36,6 +36,14 @@ export interface UseErrorCollectionOptions {
    * useErrorCollection(deployment, namespace, context, {
    *   errorDetector: (line) => line.includes('[ERROR]')
    * })
+   *
+   * @example
+   * // Custom detector with stack trace support
+   * const detector = (line) => line.includes('Error')
+   * detector.isStackTrace = (line) => line.startsWith('   at ')
+   * useErrorCollection(deployment, namespace, context, {
+   *   errorDetector: detector
+   * })
    */
   errorDetector?: ErrorDetector
 }
@@ -48,7 +56,7 @@ export function useErrorCollection(
 ): UseErrorCollectionReturn {
   // Use useMemo to ensure errorDetector updates when options changes
   const errorDetector = useMemo(
-    () => options?.errorDetector ?? defaultErrorDetector,
+    () => (options?.errorDetector ?? defaultErrorDetector) as ErrorDetector,
     [options?.errorDetector],
   )
   const [errors, setErrors] = useState<ErrorEntry[]>([])
@@ -87,6 +95,9 @@ export function useErrorCollection(
       if (lineBuffer.current.length > maxBufferSize) {
         lineBuffer.current = lineBuffer.current.slice(-maxBufferSize)
       }
+
+      // Determine stack trace detector
+      const isStackTraceLine = errorDetector.isStackTrace ?? defaultIsStackTraceLine
 
       // Check if we're collecting stack trace
       if (collectingStackTrace.current && isStackTraceLine(line)) {

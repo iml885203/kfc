@@ -34,10 +34,14 @@ export async function loadErrorDetector(): Promise<ErrorDetector> {
           : `file://${filePath}`
 
         const module = await import(fileUrl)
-        const detector = module.errorDetector || module.default
+        const detector = (module.errorDetector || module.default) as ErrorDetector
+        const isStackTrace = module.isStackTrace
 
         if (typeof detector === 'function') {
-          return detector as ErrorDetector
+          if (typeof isStackTrace === 'function') {
+            detector.isStackTrace = isStackTrace
+          }
+          return detector
         }
 
         console.error(`Warning: ${filePath} does not export a valid errorDetector function`)

@@ -5,6 +5,7 @@ export interface ErrorDetectorConfig {
   rules: ErrorRule[]
   exclude?: ExcludeRule[]
   skip?: SkipRule[]
+  stackTracePatterns?: string[]
 }
 
 export interface ErrorRule {
@@ -27,7 +28,7 @@ export interface SkipRule {
 }
 
 export function createDetectorFromConfig(config: ErrorDetectorConfig): ErrorDetector {
-  return (line: string): boolean => {
+  const detector: ErrorDetector = (line: string): boolean => {
     if (!line || typeof line !== 'string') {
       return false
     }
@@ -62,6 +63,23 @@ export function createDetectorFromConfig(config: ErrorDetectorConfig): ErrorDete
 
     return false
   }
+
+  // Attach stack trace detector if patterns defined
+  if (config.stackTracePatterns && config.stackTracePatterns.length > 0) {
+    detector.isStackTrace = (line: string): boolean => {
+      for (const pattern of config.stackTracePatterns!) {
+        try {
+          if (new RegExp(pattern).test(line)) {
+            return true
+          }
+        }
+        catch {}
+      }
+      return isStackTraceLine(line) // Fallback to default
+    }
+  }
+
+  return detector
 }
 
 function matchesRule(line: string, rule: ErrorRule): boolean {

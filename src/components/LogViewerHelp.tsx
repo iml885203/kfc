@@ -84,6 +84,11 @@ export default function LogViewerHelp() {
           Toggle text wrapping
         </Text>
         <Text>
+          <Text color="yellow" bold>d</Text>
+          {' '}
+          Toggle pod/container prefix display
+        </Text>
+        <Text>
           <Text color="yellow" bold>?</Text>
           {' '}
           Show this help

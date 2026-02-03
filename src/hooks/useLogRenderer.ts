@@ -17,6 +17,7 @@ interface UseLogRendererProps {
   displayState: {
     isWrap: boolean
     isShowingHelp: boolean
+    showPodPrefix: boolean
   }
   bufferVersion: number
 }
@@ -49,6 +50,8 @@ export function useLogRenderer({
   const prevIsConnected = usePrevious(isConnected)
   const prevErrorMode = usePrevious(errorMode)
   const prevIsShowingHelp = usePrevious(displayState.isShowingHelp)
+  const prevShowPodPrefix = usePrevious(displayState.showPodPrefix)
+  const prevIsWrap = usePrevious(displayState.isWrap)
 
   // Update refs
   useEffect(() => {
@@ -58,6 +61,7 @@ export function useLogRenderer({
 
   const fullRender = useCallback(() => {
     write('\x1Bc') // Clear screen
+    write(displayState.isWrap ? '\x1B[?7h' : '\x1B[?7l') // Apply wrap setting AFTER clear
     lastRenderedId.current = -1
     lastMatchId.current = -1
 
@@ -89,7 +93,7 @@ export function useLogRenderer({
         const coloredLine = colorizeLogLine(highlightedLine)
 
         const prefix = isMatch && pattern ? chalk.red('> ') : '  '
-        const podPart = bufferedLine.podPrefix ? `${bufferedLine.podPrefix} ` : ''
+        const podPart = (displayState.showPodPrefix && bufferedLine.podPrefix) ? `${bufferedLine.podPrefix} ` : ''
         const errorMark = errorDetectorRef.current?.(bufferedLine.line) ? chalk.red('▎') : ' '
 
         write(`${errorMark}${prefix}${podPart}${coloredLine}\n`)
@@ -109,7 +113,7 @@ export function useLogRenderer({
         lastRenderedId.current = buffer[buffer.length - 1].id
       }
     }
-  }, [bufferRef, write])
+  }, [bufferRef, write, displayState.showPodPrefix, displayState.isWrap])
 
   const incrementalRender = useCallback(() => {
     const { pattern, ignoreCase, invert, context: filterCtx, before, after } = currentFilter.current
@@ -157,7 +161,7 @@ export function useLogRenderer({
 
         const coloredLine = colorizeLogLine(highlightedLine)
         const prefix = isMatch && pattern ? chalk.red('> ') : '  '
-        const podPart = line.podPrefix ? `${line.podPrefix} ` : ''
+        const podPart = (displayState.showPodPrefix && line.podPrefix) ? `${line.podPrefix} ` : ''
         const errorMark = errorDetectorRef.current?.(line.line) ? chalk.red('▎') : ' '
 
         write(`${errorMark}${prefix}${podPart}${coloredLine}\n`)
@@ -166,7 +170,7 @@ export function useLogRenderer({
 
       lastRenderedId.current = line.id
     })
-  }, [bufferRef, write, fullRender])
+  }, [bufferRef, write, fullRender, displayState.showPodPrefix])
 
   // Initial Clear/Init
   const hasInitialized = useRef(false)
@@ -182,8 +186,6 @@ export function useLogRenderer({
 
   // Effect: Refilter when relevant state changes
   useEffect(() => {
-    write(displayState.isWrap ? '\x1B[?7h' : '\x1B[?7l')
-
     if (displayState.isShowingHelp || errorMode) {
       // Logic for help clearing handled by parent render usually,
       // but React component handles help rendering.
@@ -198,7 +200,7 @@ export function useLogRenderer({
     // We deep compare filter by stringifying because it's a small object
     const filterChanged = JSON.stringify(prevFilter) !== JSON.stringify(filter)
     const justConnected = !prevIsConnected && isConnected
-    const modeChanged = prevErrorMode !== errorMode || prevIsShowingHelp !== displayState.isShowingHelp
+    const modeChanged = prevErrorMode !== errorMode || prevIsShowingHelp !== displayState.isShowingHelp || prevShowPodPrefix !== displayState.showPodPrefix || prevIsWrap !== displayState.isWrap
 
     // If context is used, we always full render on updates (handled inside incrementalRender usually,
     // but here we check trigger conditions)
@@ -214,6 +216,7 @@ export function useLogRenderer({
   }, [
     displayState.isWrap,
     displayState.isShowingHelp,
+    displayState.showPodPrefix,
     isConnected,
     errorMode,
     fullRender,
@@ -225,6 +228,8 @@ export function useLogRenderer({
     prevIsConnected,
     prevErrorMode,
     prevIsShowingHelp,
+    prevShowPodPrefix,
+    prevIsWrap,
   ])
 
   return { refilterAndDisplay: fullRender }

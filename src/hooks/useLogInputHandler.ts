@@ -161,6 +161,9 @@ export function useLogInputHandler({
     else if (input === 'w') {
       displayState.setIsWrap(!displayState.isWrap)
     }
+    else if (input === 'd') {
+      displayState.setShowPodPrefix(!displayState.showPodPrefix)
+    }
   }, { isActive: !errorMode })
 
   return { filterInput }

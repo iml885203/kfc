@@ -15,10 +15,12 @@ describe('useLogInputHandler', () => {
     paused: false,
     isWrap: true,
     isShowingHelp: false,
+    showPodPrefix: false,
     setFilterMode: vi.fn(),
     setPaused: vi.fn(),
     setIsWrap: vi.fn(),
     setIsShowingHelp: vi.fn(),
+    setShowPodPrefix: vi.fn(),
   }
 
   const mockFilter = {
@@ -98,6 +100,16 @@ describe('useLogInputHandler', () => {
     })
     expect(mockBuffer.clear).toHaveBeenCalled()
     expect(mockErrorCollection.clearErrors).toHaveBeenCalled()
+  })
+
+  it('should toggle pod prefix when d is pressed', () => {
+    renderHook(() => useLogInputHandler(defaultProps))
+    const handler = mockUseInput.mock.calls[0][0]
+
+    act(() => {
+      handler('d', {})
+    })
+    expect(mockDisplayState.setShowPodPrefix).toHaveBeenCalledWith(true)
   })
 
   // Test cases for filter mode
